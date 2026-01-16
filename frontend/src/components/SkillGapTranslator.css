@@ -1,0 +1,285 @@
+.skill-gap-translator {
+  background: white;
+  padding: 25px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  margin-top: 30px;
+}
+
+.skill-gap-translator h3 {
+  font-size: 18px;
+  color: #333;
+  margin: 0 0 5px 0;
+}
+
+.subtitle {
+  color: #999;
+  font-size: 13px;
+  margin: 0 0 20px 0;
+}
+
+.btn-analyze {
+  padding: 12px 24px;
+  background: #667eea;
+  color: white;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+  margin-bottom: 20px;
+}
+
+.btn-analyze:hover:not(:disabled) {
+  background: #5568d3;
+}
+
+.btn-analyze:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.gap-result {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid #eee;
+}
+
+.gap-header {
+  margin-bottom: 30px;
+}
+
+.gap-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 15px;
+}
+
+.stat-box {
+  background: #f9f9f9;
+  padding: 20px;
+  border-radius: 8px;
+  text-align: center;
+}
+
+.stat-number {
+  font-size: 32px;
+  font-weight: bold;
+  color: #667eea;
+  line-height: 1;
+  margin-bottom: 8px;
+}
+
+.stat-label {
+  font-size: 12px;
+  color: #999;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.skill-section {
+  margin-bottom: 30px;
+}
+
+.skill-section h4 {
+  font-size: 16px;
+  color: #333;
+  margin: 0 0 5px 0;
+  font-weight: 600;
+}
+
+.section-desc {
+  font-size: 12px;
+  color: #999;
+  margin: 0 0 15px 0;
+}
+
+.skills-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.skill-card {
+  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+  padding: 16px;
+  border-radius: 8px;
+  border-left: 3px solid #667eea;
+}
+
+.skill-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.category-emoji {
+  font-size: 18px;
+}
+
+.skill-header strong {
+  font-size: 14px;
+  color: #333;
+  flex: 1;
+}
+
+.skill-meta {
+  display: flex;
+  gap: 8px;
+  font-size: 11px;
+}
+
+.skill-meta .difficulty,
+.skill-meta .category {
+  padding: 3px 8px;
+  background: rgba(255, 255, 255, 0.5);
+  border-radius: 3px;
+  color: #555;
+}
+
+.missing-section {
+  border: 1px solid #ffeeba;
+  background: #fffbf0;
+  padding: 20px;
+  border-radius: 8px;
+}
+
+.missing-section h4 {
+  color: #d68910;
+}
+
+.missing-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 5px;
+}
+
+.missing-header h4 {
+  margin: 0;
+}
+
+.btn-toggle-roadmaps {
+  padding: 8px 16px;
+  background: #f39c12;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-toggle-roadmaps:hover {
+  background: #d68910;
+}
+
+.btn-toggle-roadmaps.active {
+  background: #27ae60;
+}
+
+.missing-skills-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 15px;
+}
+
+.missing-skill-card {
+  background: white;
+  border: 1px solid #ffeeba;
+  padding: 15px;
+  border-radius: 8px;
+}
+
+.missing-skill-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.priority-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  height: 32px;
+  background: #667eea;
+  color: white;
+  border-radius: 50%;
+  font-weight: bold;
+  font-size: 14px;
+}
+
+.skill-info {
+  flex: 1;
+}
+
+.skill-info strong {
+  display: block;
+  color: #333;
+  font-size: 14px;
+  margin-bottom: 6px;
+}
+
+.skill-attributes {
+  display: flex;
+  gap: 10px;
+  font-size: 12px;
+}
+
+.skill-attributes .importance,
+.skill-attributes .difficulty {
+  padding: 3px 8px;
+  background: #f5f5f5;
+  border-radius: 3px;
+  color: #555;
+}
+
+.roadmap {
+  background: #f9f9f9;
+  padding: 12px;
+  border-radius: 6px;
+  margin-top: 12px;
+  border-left: 3px solid #667eea;
+}
+
+.roadmap-duration {
+  font-size: 12px;
+  color: #667eea;
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+
+.roadmap-path {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.roadmap-step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: #555;
+}
+
+.step-number {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 24px;
+  background: #667eea;
+  color: white;
+  border-radius: 50%;
+  font-size: 11px;
+  font-weight: bold;
+}
+
+.step-text {
+  flex: 1;
+}

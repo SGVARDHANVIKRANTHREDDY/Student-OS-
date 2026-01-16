@@ -1,0 +1,87 @@
+.dashboard-container {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background-color: #f5f5f5;
+}
+
+.dashboard-header {
+  background: white;
+  padding: 20px 30px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.dashboard-header h1 {
+  font-size: 24px;
+  color: #333;
+  margin: 0;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.btn-nav {
+  padding: 8px 16px;
+  background: #667eea;
+  color: white;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 500;
+  transition: background 0.2s;
+  cursor: pointer;
+}
+
+.btn-nav:hover {
+  background: #5568d3;
+}
+
+.user-section {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.user-section span {
+  color: #666;
+  font-size: 14px;
+}
+
+.btn-logout {
+  padding: 8px 16px;
+  background: #e74c3c;
+  color: white;
+  border-radius: 4px;
+  font-size: 14px;
+  transition: background 0.2s;
+  cursor: pointer;
+}
+
+.btn-logout:hover {
+  background: #c0392b;
+}
+
+.dashboard-main {
+  flex: 1;
+  padding: 40px 30px;
+  max-width: 1400px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.greeting h2 {
+  font-size: 32px;
+  color: #333;
+  margin: 0 0 5px 0;
+}
+
+.flow {
+  color: #999;
+  font-size: 14px;
+  margin: 0 0 30px 0;
+}

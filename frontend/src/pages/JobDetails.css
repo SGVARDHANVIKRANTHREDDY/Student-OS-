@@ -1,0 +1,103 @@
+.job-details h2 {
+  margin: 0;
+  color: #111827;
+}
+
+.job-details .subtitle {
+  margin-top: 6px;
+  color: #6b7280;
+  font-size: 13px;
+}
+
+.details-card {
+  margin-top: 14px;
+  background: white;
+  border: 1px solid #eee;
+  border-radius: 14px;
+  padding: 16px;
+}
+
+.details-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.details-meta {
+  margin-top: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.details-section {
+  margin-top: 14px;
+}
+
+.details-section h3 {
+  margin: 0 0 8px;
+  font-size: 14px;
+  color: #111827;
+}
+
+.details-text {
+  color: #374151;
+  font-size: 13px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+.apply-card {
+  margin-top: 14px;
+  background: white;
+  border: 1px solid #eee;
+  border-radius: 14px;
+  padding: 16px;
+}
+
+.apply-grid {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  align-items: end;
+}
+
+.apply-card label {
+  display: block;
+  font-size: 12px;
+  font-weight: 800;
+  color: #374151;
+  margin-bottom: 6px;
+}
+
+.apply-card input {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid #e5e7eb;
+  outline: none;
+  background: white;
+}
+
+.notice {
+  margin-top: 10px;
+  font-size: 13px;
+  color: #374151;
+}
+
+.notice.error {
+  background: #fff5f5;
+  border: 1px solid #fecaca;
+  color: #7f1d1d;
+  padding: 12px;
+  border-radius: 12px;
+}
+
+.notice.success {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  color: #14532d;
+  padding: 12px;
+  border-radius: 12px;
+}

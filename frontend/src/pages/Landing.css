@@ -1,0 +1,77 @@
+.landing {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.landing-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 22px 28px;
+}
+
+.landing-brand {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+}
+
+.landing-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.landing-main {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 52px 20px;
+}
+
+.landing-hero {
+  width: 100%;
+  max-width: 820px;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 10px;
+  padding: 34px;
+}
+
+.landing-hero h1 {
+  font-size: 34px;
+  line-height: 1.2;
+  margin-bottom: 12px;
+}
+
+.landing-hero p {
+  opacity: 0.95;
+  font-size: 16px;
+  line-height: 1.6;
+}
+
+.landing-cta {
+  display: flex;
+  gap: 10px;
+  margin-top: 18px;
+  flex-wrap: wrap;
+}
+
+/* Reuse auth button styles */
+.btn-primary {
+  padding: 12px 14px;
+  background: #667eea;
+  color: white;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.btn-link {
+  padding: 12px 14px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.12);
+  font-weight: 600;
+  color: white;
+}

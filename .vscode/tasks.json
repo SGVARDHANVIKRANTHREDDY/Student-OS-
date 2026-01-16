@@ -1,0 +1,220 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Smoke test backend auth",
+			"type": "process",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-ExecutionPolicy",
+				"Bypass",
+				"-File",
+				"${workspaceFolder}\\scripts\\smoke-auth.ps1"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "Start backend dev",
+			"type": "process",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-ExecutionPolicy",
+				"Bypass",
+				"-File",
+				"${workspaceFolder}\\scripts\\start-backend-dev.ps1"
+			],
+			"isBackground": true
+		},
+		{
+			"label": "Start frontend dev",
+			"type": "process",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-ExecutionPolicy",
+				"Bypass",
+				"-File",
+				"${workspaceFolder}\\scripts\\start-frontend-dev.ps1"
+			],
+			"isBackground": true
+		},
+		{
+			"label": "Smoke test data APIs",
+			"type": "process",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-ExecutionPolicy",
+				"Bypass",
+				"-File",
+				"${workspaceFolder}\\scripts\\smoke-data.ps1"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "Smoke test marketplace",
+			"type": "process",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-ExecutionPolicy",
+				"Bypass",
+				"-File",
+				"${workspaceFolder}\\scripts\\smoke-marketplace.ps1"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "Build frontend",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-ExecutionPolicy",
+				"Bypass",
+				"-File",
+				"${workspaceFolder}\\scripts\\build-frontend.ps1"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "Audit frontend deps",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-ExecutionPolicy",
+				"Bypass",
+				"-File",
+				"${workspaceFolder}\\scripts\\audit-frontend.ps1"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "Query vite versions",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-Command",
+				"Set-Location -Path \"${workspaceFolder}\\frontend\"; npm view vite@6 version; npm view @vitejs/plugin-react@6 version; npm view @vitejs/plugin-react@5 version; npm view @vitejs/plugin-react@4 version"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "Query vite dist-tags",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-Command",
+				"Set-Location -Path \"${workspaceFolder}\\frontend\"; npm view vite dist-tags --json; npm view @vitejs/plugin-react dist-tags --json"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "List vite 6.x versions",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-Command",
+				"Set-Location -Path \"${workspaceFolder}\\frontend\"; $v = (npm view vite versions --json | ConvertFrom-Json); $v | Where-Object { $_ -like '6.*' } | Select-Object -Last 20"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "List vite 6.x versions (script)",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-ExecutionPolicy",
+				"Bypass",
+				"-File",
+				"${workspaceFolder}\\scripts\\list-vite-6.ps1"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "Inspect plugin-react",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-ExecutionPolicy",
+				"Bypass",
+				"-File",
+				"${workspaceFolder}\\scripts\\inspect-plugin-react.ps1"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "Rebuild frontend (post-upgrade)",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-ExecutionPolicy",
+				"Bypass",
+				"-File",
+				"${workspaceFolder}\\scripts\\build-frontend.ps1"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "Audit backend deps",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-ExecutionPolicy",
+				"Bypass",
+				"-File",
+				"${workspaceFolder}\\scripts\\audit-backend.ps1"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "List plugin-react 4.x",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-ExecutionPolicy",
+				"Bypass",
+				"-File",
+				"${workspaceFolder}\\scripts\\list-plugin-react-4.ps1"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "List vite 5.x",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-ExecutionPolicy",
+				"Bypass",
+				"-File",
+				"${workspaceFolder}\\scripts\\show-vite-5.ps1"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "Check engines",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-ExecutionPolicy",
+				"Bypass",
+				"-File",
+				"${workspaceFolder}\\scripts\\check-engines.ps1"
+			],
+			"isBackground": false
+		}
+	]
+}

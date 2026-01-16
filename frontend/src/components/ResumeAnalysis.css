@@ -1,0 +1,112 @@
+.resume-analysis {
+  background: white;
+  padding: 25px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.resume-analysis h3 {
+  font-size: 18px;
+  color: #333;
+  margin-top: 0;
+  margin-bottom: 20px;
+}
+
+.scores-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 15px;
+  margin-bottom: 30px;
+}
+
+.score-card {
+  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+  padding: 20px;
+  border-radius: 8px;
+  text-align: center;
+}
+
+.score-card h4 {
+  font-size: 13px;
+  color: #555;
+  margin: 0 0 15px 0;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 600;
+}
+
+.score-display {
+  font-size: 48px;
+  font-weight: bold;
+  line-height: 1;
+  margin-bottom: 5px;
+}
+
+.score-label {
+  color: #999;
+  font-size: 12px;
+  margin: 0;
+}
+
+.completeness-checklist {
+  text-align: left;
+  font-size: 13px;
+}
+
+.check-item {
+  padding: 6px 0;
+  color: #666;
+  transition: color 0.2s;
+}
+
+.check-item.done {
+  color: #27ae60;
+  font-weight: 500;
+}
+
+.missing-skills-section {
+  background: #fef8f0;
+  padding: 20px;
+  border-radius: 8px;
+  border-left: 3px solid #f39c12;
+}
+
+.missing-skills-section h4 {
+  font-size: 14px;
+  color: #333;
+  margin: 0 0 8px 0;
+  font-weight: 600;
+}
+
+.skill-hint {
+  font-size: 12px;
+  color: #999;
+  margin: 0 0 15px 0;
+}
+
+.missing-skills-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.missing-skill-badge {
+  display: inline-block;
+  padding: 6px 12px;
+  background: white;
+  border: 1px solid #f39c12;
+  border-radius: 16px;
+  font-size: 12px;
+  color: #f39c12;
+  font-weight: 500;
+}
+
+.analysis-loading,
+.analysis-empty {
+  background: white;
+  padding: 25px;
+  border-radius: 8px;
+  text-align: center;
+  color: #999;
+  font-size: 14px;
+}

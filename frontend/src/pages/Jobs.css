@@ -1,0 +1,142 @@
+.jobs-page h2 {
+  margin: 0;
+  color: #111827;
+}
+
+.jobs-page .subtitle {
+  margin-top: 6px;
+  color: #6b7280;
+  font-size: 13px;
+}
+
+.jobs-toolbar {
+  margin-top: 16px;
+  background: white;
+  border: 1px solid #eee;
+  border-radius: 12px;
+  padding: 14px;
+}
+
+.jobs-filters {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr 1fr;
+  gap: 10px;
+  align-items: end;
+}
+
+.jobs-filters label {
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  color: #374151;
+  margin-bottom: 6px;
+}
+
+.jobs-filters input,
+.jobs-filters select {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid #e5e7eb;
+  outline: none;
+  background: white;
+}
+
+.jobs-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.jobs-btn {
+  background: #111827;
+  color: white;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-weight: 800;
+  font-size: 12px;
+  border: none;
+}
+
+.jobs-btn.secondary {
+  background: #f3f4f6;
+  color: #111827;
+  border: 1px solid #e5e7eb;
+}
+
+.jobs-btn:disabled {
+  opacity: 0.6;
+}
+
+.jobs-state {
+  margin-top: 14px;
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.jobs-error {
+  margin-top: 14px;
+  background: #fff5f5;
+  border: 1px solid #fecaca;
+  color: #7f1d1d;
+  padding: 12px;
+  border-radius: 12px;
+  font-size: 13px;
+}
+
+.jobs-list {
+  margin-top: 14px;
+  display: grid;
+  gap: 12px;
+}
+
+.job-card {
+  background: white;
+  border: 1px solid #eee;
+  border-radius: 14px;
+  padding: 14px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
+  align-items: center;
+}
+
+.job-title {
+  font-weight: 900;
+  color: #111827;
+}
+
+.job-meta {
+  margin-top: 6px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.job-chip {
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  color: #374151;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+}
+
+.job-cta {
+  display: flex;
+  gap: 10px;
+}
+
+.pagination {
+  margin-top: 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.pagination .hint {
+  font-size: 12px;
+  color: #6b7280;
+}

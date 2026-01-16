@@ -1,0 +1,27 @@
+node_modules/
+.env
+.env.local
+dist/
+build/
+*.log
+.DS_Store
+# dependencies
+node_modules/
+.env
+.env.local
+
+# build output
+dist/
+build/
+.next/
+
+# logs
+logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+
+# Docker
+*.volume

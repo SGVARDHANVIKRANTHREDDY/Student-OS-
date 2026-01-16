@@ -1,0 +1,110 @@
+.applications h2 {
+  margin: 0;
+  color: #111827;
+}
+
+.applications .subtitle {
+  margin-top: 6px;
+  color: #6b7280;
+  font-size: 13px;
+}
+
+.applications-list {
+  margin-top: 14px;
+  display: grid;
+  gap: 12px;
+}
+
+.application-card {
+  background: white;
+  border: 1px solid #eee;
+  border-radius: 14px;
+  padding: 14px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.application-title {
+  font-weight: 900;
+  color: #111827;
+}
+
+.application-meta {
+  margin-top: 6px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.status {
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 900;
+  border: 1px solid #e5e7eb;
+  background: #f3f4f6;
+  color: #111827;
+}
+
+.status.APPLIED {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+  color: #1e3a8a;
+}
+
+.status.SHORTLISTED {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+  color: #14532d;
+}
+
+.status.REJECTED {
+  background: #fff5f5;
+  border-color: #fecaca;
+  color: #7f1d1d;
+}
+
+.status.OFFERED {
+  background: #f5f3ff;
+  border-color: #ddd6fe;
+  color: #4c1d95;
+}
+
+.status.SELECTED {
+  background: #f5f3ff;
+  border-color: #ddd6fe;
+  color: #4c1d95;
+}
+
+.page-state {
+  margin-top: 14px;
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.page-error {
+  margin-top: 14px;
+  background: #fff5f5;
+  border: 1px solid #fecaca;
+  color: #7f1d1d;
+  padding: 12px;
+  border-radius: 12px;
+  font-size: 13px;
+}
+
+.pagination {
+  margin-top: 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.pagination .hint {
+  font-size: 12px;
+  color: #6b7280;
+}

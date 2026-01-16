@@ -1,0 +1,233 @@
+.job-matcher {
+  background: white;
+  padding: 25px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  margin-top: 30px;
+}
+
+.job-matcher h3 {
+  font-size: 18px;
+  color: #333;
+  margin: 0 0 20px 0;
+}
+
+.matcher-tabs {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid #eee;
+}
+
+.tab {
+  padding: 10px 16px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  color: #999;
+  border-bottom: 2px solid transparent;
+  transition: all 0.2s;
+}
+
+.tab.active {
+  color: #667eea;
+  border-bottom-color: #667eea;
+}
+
+.tab:hover {
+  color: #667eea;
+}
+
+.matcher-input {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  margin-bottom: 20px;
+}
+
+.role-select,
+.job-desc-input {
+  padding: 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+  font-family: inherit;
+}
+
+.role-select:focus,
+.job-desc-input:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.btn-match {
+  padding: 12px 24px;
+  background: #667eea;
+  color: white;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.btn-match:hover:not(:disabled) {
+  background: #5568d3;
+}
+
+.btn-match:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.match-result {
+  border-top: 1px solid #eee;
+  padding-top: 20px;
+  margin-top: 20px;
+}
+
+.result-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.result-header h4 {
+  font-size: 16px;
+  color: #333;
+  margin: 0;
+}
+
+.match-percentage {
+  font-size: 28px;
+  font-weight: bold;
+}
+
+.match-scores {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  margin-bottom: 20px;
+}
+
+.score-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.score-item > span:first-child {
+  width: 120px;
+  font-size: 13px;
+  color: #666;
+}
+
+.score-bar {
+  flex: 1;
+  height: 8px;
+  background: #eee;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.score-fill {
+  height: 100%;
+  transition: width 0.3s;
+}
+
+.score-text {
+  width: 50px;
+  text-align: right;
+  font-size: 13px;
+  color: #999;
+}
+
+.decision-box {
+  background: #f9f9f9;
+  padding: 20px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.decision-text strong {
+  font-size: 16px;
+  display: block;
+  margin-bottom: 5px;
+  color: #333;
+}
+
+.decision-text p {
+  margin: 0;
+  font-size: 13px;
+  color: #666;
+}
+
+.btn-action {
+  padding: 10px 20px;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-apply {
+  background: #27ae60;
+  color: white;
+}
+
+.btn-apply:hover {
+  background: #229954;
+}
+
+.btn-improve {
+  background: #f39c12;
+  color: white;
+}
+
+.btn-improve:hover {
+  background: #d68910;
+}
+
+.match-section {
+  margin-bottom: 20px;
+}
+
+.match-section h5 {
+  font-size: 14px;
+  color: #333;
+  margin: 0 0 12px 0;
+  font-weight: 600;
+}
+
+.skill-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.skill-badge {
+  display: inline-block;
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.skill-badge.strength {
+  background: #d4edda;
+  color: #155724;
+  border: 1px solid #c3e6cb;
+}
+
+.skill-badge.missing {
+  background: #fff3cd;
+  color: #856404;
+  border: 1px solid #ffeeba;
+}

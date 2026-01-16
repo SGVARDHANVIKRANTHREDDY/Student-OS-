@@ -1,0 +1,44 @@
+.resume-page {
+  padding: 30px;
+  max-width: 1600px;
+  margin: 0 auto;
+  width: 100%;
+  background: #f5f5f5;
+  display: block;
+}
+
+.resume-page h2 {
+  font-size: 28px;
+  color: #333;
+  margin: 0 0 5px 0;
+  display: block;
+}
+
+.page-subtitle {
+  color: #999;
+  font-size: 14px;
+  margin: 0 0 30px 0;
+  display: block;
+}
+
+.resume-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 30px;
+  margin-bottom: 30px;
+}
+
+.resume-form-column,
+.resume-preview-column {
+  min-height: 600px;
+}
+
+.resume-analysis-column {
+  margin-top: 20px;
+}
+
+@media (max-width: 1200px) {
+  .resume-layout {
+    grid-template-columns: 1fr;
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "name": "student-os-backend",
+  "version": "1.0.0",
+  "description": "Student OS Backend API",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "worker": "node worker.js",
+    "worker:dev": "node --watch worker.js",
+    "migrate:pg": "node scripts/migrate-pg.js",
+    "promote:admin": "node scripts/promote-admin.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "better-sqlite3": "^8.7.0",
+    "bullmq": "^5.58.0",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "express-rate-limit": "^7.5.1",
+    "google-auth-library": "^10.5.0",
+    "ioredis": "^5.8.0",
+    "jsonwebtoken": "^9.0.3",
+    "multer": "^2.0.2",
+    "pdf-parse": "^1.1.1",
+    "pg": "^8.16.3",
+    "pino": "^9.7.0",
+    "pino-http": "^10.5.0"
+  }
+}

@@ -1,0 +1,95 @@
+.onboarding {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.card {
+  width: 100%;
+  max-width: 760px;
+  background: white;
+  border: 1px solid #eee;
+  border-radius: 14px;
+  padding: 26px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+}
+
+.card h1 {
+  margin: 0;
+  color: #111827;
+}
+
+.sub {
+  margin-top: 8px;
+  color: #6b7280;
+  font-size: 13px;
+}
+
+.grid {
+  margin-top: 18px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+label {
+  display: block;
+  margin-bottom: 6px;
+  color: #374151;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+input {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #ddd;
+  border-radius: 10px;
+  font-size: 14px;
+}
+
+.btn {
+  margin-top: 18px;
+  width: 100%;
+  background: #111827;
+  color: white;
+  border-radius: 10px;
+  padding: 12px;
+  font-weight: 800;
+}
+
+.actions {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  gap: 10px;
+  align-items: center;
+  margin-top: 18px;
+}
+
+.btn-secondary {
+  width: 100%;
+  background: white;
+  color: #111827;
+  border: 1px solid #ddd;
+  border-radius: 10px;
+  padding: 12px;
+  font-weight: 800;
+}
+
+.error {
+  margin-top: 12px;
+  background: #fff3f3;
+  border: 1px solid #ffd6d6;
+  color: #b00020;
+  padding: 10px;
+  border-radius: 10px;
+  font-size: 13px;
+}
+
+@media (max-width: 760px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}

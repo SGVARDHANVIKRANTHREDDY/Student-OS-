@@ -1,43 +1,30 @@
-import { useState, useEffect } from 'react'
 import ResumeForm from '../components/ResumeForm'
 import ResumePreview from '../components/ResumePreview'
 import ResumeAnalysis from '../components/ResumeAnalysis'
 import { useAuth } from '../context/AuthContext'
-import { apiFetch } from '../lib/api'
+import { useResume } from '../hooks/useApi'
+import './Resume.css'
 
 export default function Resume() {
   const { user, token } = useAuth()
-  const [resume, setResume] = useState({ summary: '', education: [], skills: [], projects: [], experience: [] })
-  const [refreshAnalysis, setRefreshAnalysis] = useState(0)
-
-  const handleSave = async () => {
-    if (!user?.id || !token) return
-    const res = await apiFetch(`/api/resume/${user.id}`, { token })
-    if (res.ok) {
-      setResume(res.data)
-      setRefreshAnalysis((prev) => prev + 1)
-    }
-  }
-
-  useEffect(() => {
-    handleSave()
-  }, [user?.id, token])
+  const { data: resumeRes, refetch } = useResume(user?.id)
+  const resume = resumeRes?.data ?? resumeRes ?? { summary: '', education: [], skills: [], projects: [], experience: [] }
 
   return (
-    <div style={{ padding: '30px' }}>
+    <div className="resume-page">
       <h2>Resume Builder</h2>
-      <p style={{ color: '#999' }}>Build an ATS-friendly resume with intelligent recommendations</p>
+      <p className="subtitle">Build an ATS-friendly resume with intelligent recommendations</p>
       
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '30px', marginTop: '30px' }}>
+      <div className="resume-grid">
         <div>
-          <ResumeForm userId={user.id} token={token} onSave={handleSave} />
+          <ResumeForm userId={user.id} token={token} onSave={refetch} />
         </div>
         <div>
           <ResumePreview resume={resume} />
         </div>
       </div>
 
-      <ResumeAnalysis userId={user.id} token={token} refreshTrigger={refreshAnalysis} />
+      <ResumeAnalysis userId={user.id} token={token} refreshTrigger={0} />
     </div>
   )
 }

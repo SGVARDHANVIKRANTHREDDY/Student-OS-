@@ -1,147 +1,91 @@
-import { useEffect, useMemo, useState } from 'react'
-import { useAuth } from '../context/AuthContext'
-import { apiFetch } from '../lib/api'
+import { useState } from 'react'
+import { useLearningCourses, useCompleteCourse } from '../hooks/useApi'
+import { useToast } from '../components/Toast'
+import Spinner from '../components/Spinner'
+import EmptyState from '../components/EmptyState'
+import './Learning.css'
 
 export default function Learning() {
-  const { token } = useAuth()
+  const toast = useToast()
 
-  const [items, setItems] = useState([])
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
+  const { data: res, isLoading: loading, error: fetchError } = useLearningCourses()
+  const items = res?.data?.items ?? res?.items ?? []
+  const error = fetchError ? (fetchError.message || 'Failed to load courses') : ''
 
+  const completeCourse = useCompleteCourse()
   const [completed, setCompleted] = useState(() => new Set())
-  const [completingId, setCompletingId] = useState(null)
 
-  const completedCount = useMemo(() => completed.size, [completed])
-
-  useEffect(() => {
-    const load = async () => {
-      if (!token) return
-      setLoading(true)
-      setError('')
-      const res = await apiFetch('/api/learning/courses', { token })
-      if (!res.ok) {
-        setItems([])
-        setError(res.data?.message || 'Failed to load courses')
-        setLoading(false)
-        return
-      }
-      setItems(Array.isArray(res.data?.items) ? res.data.items : [])
-      setLoading(false)
-    }
-
-    load()
-  }, [token])
-
-  const markComplete = async (courseId) => {
-    if (!token) return
+  const markComplete = (courseId) => {
     const id = Number(courseId)
     if (!Number.isFinite(id)) return
 
-    setCompletingId(id)
-    const res = await apiFetch(`/api/learning/courses/${id}/complete`, { token, method: 'POST', body: {} })
-    setCompletingId(null)
-    if (!res.ok) {
-      setError(res.data?.message || 'Failed to mark course complete')
-      return
-    }
-
-    setCompleted((prev) => {
-      const next = new Set(Array.from(prev))
-      next.add(id)
-      return next
+    completeCourse.mutate(id, {
+      onSuccess: () => {
+        setCompleted((prev) => {
+          const next = new Set(prev)
+          next.add(id)
+          return next
+        })
+        toast.success('Course marked complete!')
+      },
+      onError: (err) => toast.error(err.message || 'Failed to mark course complete'),
     })
   }
 
   return (
-    <div>
-      <h2 style={{ margin: 0, color: '#111827' }}>Learning</h2>
-      <p style={{ marginTop: 6, color: '#6b7280', fontSize: 13 }}>
+    <div className="learning-page">
+      <h2>Learning</h2>
+      <p className="subtitle">
         Curated courses approved by operators. Completing a course updates your skills profile.
       </p>
 
-      {completedCount > 0 && (
-        <div style={{ marginTop: 10, color: '#6b7280', fontSize: 13 }}>
-          Completed this session: {completedCount}
-        </div>
+      {completed.size > 0 && (
+        <div className="session-count">Completed this session: {completed.size}</div>
       )}
 
-      {loading && <div style={{ marginTop: 16, color: '#6b7280', fontSize: 13 }}>Loading courses…</div>}
-      {error && <div style={{ marginTop: 16, color: '#b91c1c', fontSize: 13 }}>{error}</div>}
+      {loading && <Spinner />}
+      {error && <div className="state-msg error">{error}</div>}
 
       {!loading && !error && items.length === 0 && (
-        <div style={{ marginTop: 16, color: '#6b7280', fontSize: 13 }}>
-          No courses available yet.
-        </div>
+        <EmptyState title="No courses" message="No courses available yet." />
       )}
 
       {!loading && !error && items.length > 0 && (
-        <div style={{ marginTop: 16, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 12 }}>
+        <div className="courses-grid">
           {items.map((c) => {
             const isDone = completed.has(Number(c.id))
             return (
-              <div key={c.id} style={{ border: '1px solid #e5e7eb', borderRadius: 12, padding: 14, background: '#fff' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
-                  <div style={{ fontWeight: 800, color: '#111827' }}>{c.name}</div>
-                  <div style={{ color: '#6b7280', fontSize: 12 }}>{c.status}</div>
+              <div key={c.id} className="course-card">
+                <div className="course-header">
+                  <div className="course-name">{c.name}</div>
+                  <div className="course-status">{c.status}</div>
                 </div>
 
-                {c.description && (
-                  <div style={{ marginTop: 8, color: '#6b7280', fontSize: 13 }}>
-                    {c.description}
-                  </div>
-                )}
+                {c.description && <div className="course-desc">{c.description}</div>}
 
                 {Array.isArray(c.skills) && c.skills.length > 0 && (
-                  <div style={{ marginTop: 10, display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                  <div className="course-skills">
                     {c.skills.map((s, idx) => (
-                      <div key={`${s}-${idx}`} style={{ padding: '6px 10px', borderRadius: 999, border: '1px solid #e5e7eb', fontSize: 12 }}>
-                        {s}
-                      </div>
+                      <div key={`${s}-${idx}`} className="course-skill-pill">{s}</div>
                     ))}
                   </div>
                 )}
 
-                <div style={{ marginTop: 12, display: 'flex', gap: 10 }}>
+                <div className="course-actions">
                   {c.externalUrl ? (
-                    <a
-                      href={c.externalUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      style={{
-                        display: 'inline-block',
-                        padding: '10px 12px',
-                        borderRadius: 10,
-                        border: '1px solid #e5e7eb',
-                        background: '#fff',
-                        color: '#111827',
-                        textDecoration: 'none',
-                        fontSize: 13,
-                      }}
-                    >
+                    <a href={c.externalUrl} target="_blank" rel="noreferrer" className="course-link">
                       Open
                     </a>
                   ) : (
-                    <div style={{ padding: '10px 12px', borderRadius: 10, border: '1px solid #e5e7eb', color: '#6b7280', fontSize: 13 }}>
-                      No link
-                    </div>
+                    <div className="course-no-link">No link</div>
                   )}
 
                   <button
                     onClick={() => markComplete(c.id)}
-                    disabled={isDone || completingId === Number(c.id)}
-                    style={{
-                      padding: '10px 12px',
-                      borderRadius: 10,
-                      border: '1px solid #111827',
-                      background: isDone ? '#fff' : '#111827',
-                      color: isDone ? '#111827' : '#fff',
-                      cursor: isDone || completingId === Number(c.id) ? 'not-allowed' : 'pointer',
-                      opacity: completingId === Number(c.id) ? 0.7 : 1,
-                      fontSize: 13,
-                    }}
+                    disabled={isDone || (completeCourse.isPending && completeCourse.variables === Number(c.id))}
+                    className={`course-complete-btn${isDone ? ' done' : ''}`}
                   >
-                    {isDone ? 'Completed' : completingId === Number(c.id) ? 'Completing…' : 'Mark complete'}
+                    {isDone ? 'Completed' : (completeCourse.isPending && completeCourse.variables === Number(c.id)) ? 'Completing…' : 'Mark complete'}
                   </button>
                 </div>
               </div>

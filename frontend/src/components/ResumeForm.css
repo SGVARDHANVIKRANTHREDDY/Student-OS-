@@ -1,14 +1,16 @@
+/* ─── Resume Form ─── */
 .resume-form {
-  background: white;
-  padding: 25px;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  background: var(--color-surface);
+  padding: var(--space-6);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-card);
 }
 
 .form-section {
-  margin-bottom: 30px;
-  border-bottom: 1px solid #eee;
-  padding-bottom: 25px;
+  margin-bottom: var(--space-6);
+  border-bottom: 1px solid var(--color-border);
+  padding-bottom: var(--space-5);
 }
 
 .form-section:last-of-type {
@@ -16,132 +18,144 @@
 }
 
 .form-section h4 {
-  font-size: 16px;
-  color: #333;
-  margin-bottom: 15px;
-  font-weight: 600;
+  font-size: var(--text-base);
+  color: var(--color-text);
+  margin-bottom: var(--space-4);
+  font-weight: var(--font-bold);
 }
 
 .form-section textarea {
   width: 100%;
-  padding: 12px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 14px;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
   font-family: inherit;
   resize: vertical;
+  background: var(--color-bg);
+  transition: all var(--transition-fast);
 }
 
 .form-section textarea:focus {
   outline: none;
-  border-color: #667eea;
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px var(--color-primary-subtle);
+  background: var(--color-surface);
 }
 
 .form-inputs {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  margin-bottom: 15px;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
 }
 
 .form-inputs input {
-  padding: 10px 12px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 14px;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
   font-family: inherit;
+  background: var(--color-bg);
+  transition: all var(--transition-fast);
 }
 
 .form-inputs input:focus {
   outline: none;
-  border-color: #667eea;
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px var(--color-primary-subtle);
+  background: var(--color-surface);
 }
 
 .btn-add {
-  padding: 10px 16px;
-  background: #667eea;
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-primary);
   color: white;
-  border-radius: 4px;
-  font-size: 14px;
-  font-weight: 500;
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  font-weight: var(--font-semibold);
   cursor: pointer;
-  transition: background 0.2s;
+  transition: all var(--transition-fast);
+  border: none;
 }
 
 .btn-add:hover {
-  background: #5568d3;
+  background: var(--color-primary-hover);
+  box-shadow: var(--shadow-glow);
 }
 
 .items-list {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--space-3);
 }
 
 .item {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  padding: 12px;
-  background: #f9f9f9;
-  border-radius: 4px;
-  border-left: 3px solid #667eea;
+  padding: var(--space-3);
+  background: var(--color-bg);
+  border-radius: var(--radius-md);
+  border-left: 3px solid var(--color-primary);
 }
 
 .item strong {
   display: block;
-  color: #333;
-  font-size: 14px;
-  margin-bottom: 4px;
+  color: var(--color-text);
+  font-size: var(--text-sm);
+  margin-bottom: var(--space-1);
 }
 
 .item p {
   margin: 0;
-  color: #666;
-  font-size: 13px;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
 }
 
 .item .year {
-  color: #999;
-  font-size: 12px;
-  margin-top: 4px;
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  margin-top: var(--space-1);
 }
 
 .btn-remove {
-  padding: 4px 8px;
-  background: #e74c3c;
+  padding: var(--space-1) var(--space-2);
+  background: var(--color-error);
   color: white;
-  border-radius: 4px;
-  font-size: 12px;
+  border-radius: var(--radius-md);
+  font-size: var(--text-xs);
   cursor: pointer;
-  transition: background 0.2s;
+  transition: background var(--transition-fast);
+  border: none;
 }
 
 .btn-remove:hover {
-  background: #c0392b;
+  background: #dc2626;
 }
 
 .skill-input {
   display: flex;
-  gap: 10px;
-  margin-bottom: 15px;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
 }
 
 .skill-input input {
   flex: 1;
-  padding: 10px 12px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 14px;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
   font-family: inherit;
+  background: var(--color-bg);
+  transition: all var(--transition-fast);
 }
 
 .skill-input input:focus {
   outline: none;
-  border-color: #667eea;
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px var(--color-primary-subtle);
+  background: var(--color-surface);
 }
 
 .skill-input .btn-add {
@@ -151,62 +165,66 @@
 .skills-list {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 15px;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
 }
 
 .skill-tag {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  background: #f0f7ff;
-  border: 1px solid #667eea;
-  border-radius: 20px;
-  font-size: 13px;
-  color: #667eea;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-primary-subtle);
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  border-radius: 999px;
+  font-size: var(--text-sm);
+  color: var(--color-primary);
+  font-weight: var(--font-semibold);
 }
 
 .skill-tag button {
   background: none;
   color: inherit;
   cursor: pointer;
-  font-size: 14px;
+  font-size: var(--text-sm);
   padding: 0;
-  transition: color 0.2s;
+  border: none;
+  transition: opacity var(--transition-fast);
 }
 
 .skill-tag button:hover {
-  color: #5568d3;
+  opacity: 0.7;
 }
 
 .empty-hint {
-  color: #999;
-  font-size: 13px;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
   text-align: center;
-  padding: 20px;
+  padding: var(--space-5);
 }
 
 .form-actions {
   display: flex;
-  gap: 10px;
-  margin-top: 30px;
-  padding-top: 20px;
-  border-top: 1px solid #eee;
+  gap: var(--space-3);
+  margin-top: var(--space-6);
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--color-border);
 }
 
 .btn-save {
-  padding: 12px 24px;
-  background: #27ae60;
+  padding: var(--space-3) var(--space-5);
+  background: var(--color-success);
   color: white;
-  border-radius: 4px;
-  font-size: 14px;
-  font-weight: 600;
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  font-weight: var(--font-bold);
   cursor: pointer;
-  transition: background 0.2s;
+  transition: all var(--transition-fast);
   flex: 1;
+  border: none;
 }
 
 .btn-save:hover {
-  background: #229954;
+  background: #16a34a;
+  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.15);
 }

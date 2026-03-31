@@ -1,16 +1,18 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { apiFetch } from '../lib/api'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { api } from '../lib/apiClient'
+import { queryKeys } from '../lib/queryClient'
+import { useToast } from '../components/Toast'
 import JobMatcher from '../components/JobMatcher'
 import './Jobs.css'
 
 export default function Jobs() {
   const navigate = useNavigate()
   const { user, token } = useAuth()
-
-  const [resume, setResume] = useState(null)
-  const [resumeError, setResumeError] = useState('')
+  const queryClient = useQueryClient()
+  const toast = useToast()
 
   const [q, setQ] = useState('')
   const [location, setLocation] = useState('')
@@ -19,13 +21,6 @@ export default function Jobs() {
 
   const [page, setPage] = useState(1)
   const [pageSize] = useState(20)
-
-  const [items, setItems] = useState([])
-  const [total, setTotal] = useState(0)
-  const [hasNext, setHasNext] = useState(false)
-
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
 
   const query = useMemo(() => {
     const params = new URLSearchParams()
@@ -38,50 +33,37 @@ export default function Jobs() {
     return params.toString()
   }, [experience, location, page, pageSize, q, type])
 
-  useEffect(() => {
-    const loadResume = async () => {
-      if (!user?.id || !token) return
-      setResumeError('')
-      const res = await apiFetch(`/api/resume/${user.id}`, { token })
-      if (!res.ok) {
-        setResume(null)
-        setResumeError(res.data?.message || 'Failed to load resume')
-        return
-      }
-      setResume(res.data)
-    }
+  const { data: resume, error: resumeError } = useQuery({
+    queryKey: queryKeys.resume(user?.id),
+    queryFn: () => api.get(`/api/resume/${encodeURIComponent(user.id)}`, token),
+    enabled: !!user?.id && !!token,
+  })
 
-    loadResume()
-  }, [token, user?.id])
+  const { data: jobsData, isLoading: loading, error } = useQuery({
+    queryKey: [...queryKeys.jobs(), query],
+    queryFn: () => api.get(`/api/jobs?${query}`, token),
+    enabled: !!token,
+    keepPreviousData: true,
+  })
 
-  useEffect(() => {
-    const load = async () => {
-      setLoading(true)
-      setError('')
-      try {
-        const res = await apiFetch(`/api/jobs?${query}`, { token })
-        if (!res.ok) {
-          setItems([])
-          setTotal(0)
-          setHasNext(false)
-          setError(res.data?.message || 'Failed to load jobs')
-          return
-        }
-        setItems(res.data?.items || [])
-        setTotal(res.data?.total || 0)
-        setHasNext(!!res.data?.hasNext)
-      } catch {
-        setItems([])
-        setTotal(0)
-        setHasNext(false)
-        setError('Failed to load jobs')
-      } finally {
-        setLoading(false)
-      }
-    }
+  const items = jobsData?.data?.items ?? jobsData?.items ?? []
+  const total = jobsData?.data?.total ?? jobsData?.total ?? 0
+  const hasNext = jobsData?.data?.hasNext ?? jobsData?.hasNext ?? false
 
-    load()
-  }, [query, token])
+  const saveMutation = useMutation({
+    mutationFn: ({ jobId, isSaved }) => {
+      const method = isSaved ? 'delete' : 'post'
+      return api[method](`/api/jobs/${encodeURIComponent(jobId)}/save`, token)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.jobs() })
+    },
+    onError: () => {
+      toast.error('Failed to save job')
+    },
+  })
+
+  const toggleSave = (job) => saveMutation.mutate({ jobId: job.id, isSaved: job.isSaved })
 
   const resetFilters = () => {
     setQ('')
@@ -91,17 +73,9 @@ export default function Jobs() {
     setPage(1)
   }
 
-  const toggleSave = async (job) => {
-    const method = job.isSaved ? 'DELETE' : 'POST'
-    const res = await apiFetch(`/api/jobs/${encodeURIComponent(job.id)}/save`, { token, method })
-    if (res.ok) {
-      setItems((prev) => prev.map((x) => (x.id === job.id ? { ...x, isSaved: !x.isSaved } : x)))
-    }
-  }
-
   return (
     <div className="jobs-page">
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center' }}>
+      <div className="page-header">
         <div>
           <h2>Jobs</h2>
           <p className="subtitle">Discover active roles, save them, and apply with tracking.</p>
@@ -109,15 +83,15 @@ export default function Jobs() {
         <button className="jobs-btn secondary" onClick={() => navigate('/app/applications')}>Applications</button>
       </div>
 
-      <div style={{ marginTop: 12 }}>
+      <div className="jobs-matcher-wrap">
         <JobMatcher
           userId={user?.id}
           token={token}
-          resume={resume || { summary: '', education: [], skills: [], projects: [], experience: [] }}
+          resume={resume?.data ?? resume ?? { summary: '', education: [], skills: [], projects: [], experience: [] }}
         />
         {resumeError && (
-          <div className="jobs-error" style={{ marginTop: 10 }}>
-            {resumeError}. Job matching may be incomplete until your resume loads.
+          <div className="jobs-error">
+            Failed to load resume. Job matching may be incomplete until your resume loads.
           </div>
         )}
       </div>
@@ -146,13 +120,13 @@ export default function Jobs() {
           </div>
         </div>
 
-        <div style={{ marginTop: 10 }} className="jobs-actions">
+        <div className="jobs-actions">
           <button className="jobs-btn secondary" onClick={resetFilters} disabled={loading}>Reset</button>
         </div>
       </div>
 
       {loading && <div className="jobs-state">Loading jobs…</div>}
-      {error && <div className="jobs-error">{error}</div>}
+      {error && <div className="jobs-error">{error.message || 'Failed to load jobs'}</div>}
 
       {!loading && !error && items.length === 0 && (
         <div className="jobs-state">No active jobs match your filters.</div>

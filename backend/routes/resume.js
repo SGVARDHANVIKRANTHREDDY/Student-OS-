@@ -33,6 +33,9 @@ import { getTenantIdFromRequest } from '../lib/tenancy.js'
 import { checkUsageLimit, incrementUsage } from '../lib/billing.js'
 import { hasPermission } from '../lib/rbac.js'
 import { requireUserInTenant } from '../lib/tenantScope.js'
+import { validate } from '../lib/validate.js'
+import { userIdParam, resumeTemplateBody, resumeRenderBody, renderIdParam, resumeVersionQuery, resumeSaveBody } from '../lib/schemas.js'
+import { apiSuccess, apiCreated, apiError, apiNotFound, apiForbidden, apiTooMany } from '../lib/apiResponse.js'
 
 const router = express.Router()
 
@@ -48,6 +51,11 @@ const upload = multer({
   }),
   limits: {
     fileSize: Number(process.env.RESUME_UPLOAD_MAX_BYTES || 10 * 1024 * 1024),
+  },
+  fileFilter: (_req, file, cb) => {
+    const allowed = ['application/pdf']
+    if (allowed.includes(file.mimetype)) return cb(null, true)
+    cb(new Error('Only PDF files are accepted'))
   },
 })
 
@@ -174,21 +182,17 @@ function canWriteUserParam(req, requestedUserId) {
 }
 
 // Save resume
-router.post('/:userId', authMiddleware, (req, res) => {
+router.post('/:userId', authMiddleware, validate({ params: userIdParam, body: resumeSaveBody }), (req, res) => {
   const { userId } = req.params
   const tenantId = getTenantIdFromRequest(req)
   const { summary, education, skills, projects, experience } = req.body
 
-  if (!userId) {
-    return res.status(400).json({ message: 'User ID required' })
-  }
-
   if (!canWriteUserParam(req, userId)) {
-    return res.status(403).json({ message: 'Forbidden' })
+    return apiForbidden(res)
   }
 
   const db = getDb()
-  if (!requireUserInTenant(db, { tenantId, userId })) return res.status(403).json({ message: 'Forbidden' })
+  if (!requireUserInTenant(db, { tenantId, userId })) return apiForbidden(res)
 
   const resume = {
     summary: String(summary || ''),
@@ -285,10 +289,7 @@ router.post('/:userId', authMiddleware, (req, res) => {
     logger.warn({ err }, '[resume] versioned resume enqueue failed')
   }
 
-  res.json({
-    message: 'Resume saved',
-    resume,
-  })
+  return apiSuccess(res, { message: 'Resume saved', resume })
 })
 
 // Module 3: Upload PDF resume (non-blocking). Returns a version label for downstream flows.
@@ -296,12 +297,12 @@ router.post('/me/upload', authMiddleware, limitResumeUpload, upload.single('file
   const userId = req.user.id
   const tenantId = getTenantIdFromRequest(req)
   const file = req.file
-  if (!file?.path) return res.status(400).json({ message: 'file is required' })
+  if (!file?.path) return apiError(res, { status: 400, message: 'file is required' })
 
   const mime = String(file.mimetype || '').toLowerCase()
   if (mime && mime !== 'application/pdf') {
     fs.unlink(file.path).catch(() => {})
-    return res.status(400).json({ message: 'Only PDF uploads are supported' })
+    return apiError(res, { status: 400, message: 'Only PDF uploads are supported' })
   }
 
   const db = getDb()
@@ -310,13 +311,7 @@ router.post('/me/upload', authMiddleware, limitResumeUpload, upload.single('file
   const uploadCheck = checkUsageLimit(db, { tenantId, featureKey: 'resume_uploads_per_month', incrementBy: 1 })
   if (!uploadCheck.ok) {
     fs.unlink(file.path).catch(() => {})
-    return res.status(429).json({
-      message: uploadCheck.message,
-      code: uploadCheck.code,
-      limit: uploadCheck.limit ?? null,
-      used: uploadCheck.used ?? null,
-      period: uploadCheck.period ?? null,
-    })
+    return apiTooMany(res, { message: uploadCheck.message })
   }
 
   try {
@@ -427,24 +422,17 @@ router.post('/me/upload', authMiddleware, limitResumeUpload, upload.single('file
       })
 
       if (!enq.ok) {
-        return res.status(429).json({
-          message: enq.message,
-          code: enq.code,
-          limit: enq.limit ?? null,
-          used: enq.used ?? null,
-          retryAfterSec: enq.retryAfterSec ?? 60,
-        })
+        return apiTooMany(res, { message: enq.message, retryAfterSec: enq.retryAfterSec ?? 60 })
       }
 
       if (enq.warning) res.setHeader('X-StudentOS-Quota-Warn', enq.warning)
     }
 
-    return res.status(202).json({
-      ok: true,
+    return apiSuccess(res, {
       deduped: !!created.deduped,
       resumeVersion: created.version.version_label,
       status: created.version.status,
-    })
+    }, { status: 202 })
   } catch (err) {
     // Best-effort cleanup of uploaded file on error.
     fs.unlink(file.path).catch(() => {})
@@ -454,7 +442,7 @@ router.post('/me/upload', authMiddleware, limitResumeUpload, upload.single('file
 
 // Module 4: Manual retry for latest failed resume parsing job.
 router.post('/me/retry', authMiddleware, async (req, res) => {
-  if (!isQueueingAvailable()) return res.status(503).json({ message: 'Resume processing queue is not available' })
+  if (!isQueueingAvailable()) return apiError(res, { status: 503, message: 'Resume processing queue is not available' })
 
   const userId = req.user.id
   const db = getDb()
@@ -469,7 +457,7 @@ router.post('/me/retry', authMiddleware, async (req, res) => {
     )
     .get(userId, JOB_TYPES.RESUME_PARSING)
 
-  if (!failed) return res.status(404).json({ message: 'No failed resume processing job found' })
+  if (!failed) return apiNotFound(res, 'No failed resume processing job found')
 
   const scopeKey = String(failed.scope_key)
   const maxPerDay = Number(process.env.MANUAL_RETRY_MAX_PER_DAY || 3)
@@ -486,7 +474,7 @@ router.post('/me/retry', authMiddleware, async (req, res) => {
     )
     .get(userId, JOB_TYPES.RESUME_PARSING, scopeKey, cutoff)
   if (Number(c?.n || 0) >= maxPerDay) {
-    return res.status(429).json({ message: 'Retry limit reached for today. Please try again later.' })
+    return apiTooMany(res, { message: 'Retry limit reached for today. Please try again later.' })
   }
 
   let payload
@@ -562,35 +550,29 @@ router.post('/me/retry', authMiddleware, async (req, res) => {
   })
 
   if (!enq.ok) {
-    return res.status(429).json({
-      message: enq.message,
-      code: enq.code,
-      limit: enq.limit ?? null,
-      used: enq.used ?? null,
-      retryAfterSec: enq.retryAfterSec ?? 60,
-    })
+    return apiTooMany(res, { message: enq.message, retryAfterSec: enq.retryAfterSec ?? 60 })
   }
 
   if (enq.warning) res.setHeader('X-StudentOS-Quota-Warn', enq.warning)
-  return res.status(202).json({ ok: true, enqueued: true })
+  return apiSuccess(res, { enqueued: true }, { status: 202 })
 })
 
 // Module 3: List resume versions for the authenticated user.
 router.get('/me/versions', authMiddleware, (req, res) => {
   const db = getDb()
   const items = listResumeVersions(db, req.user.id)
-  return res.json({ items })
+  return apiSuccess(res, { items })
 })
 
 // Module 3: Get latest resume version status and (optionally) snapshot.
-router.get('/me/status', authMiddleware, (req, res) => {
-  const includeSnapshot = String(req.query?.includeSnapshot || '').toLowerCase() === 'true'
+router.get('/me/status', authMiddleware, validate({ query: resumeVersionQuery }), (req, res) => {
+  const includeSnapshot = req.query?.includeSnapshot === 'true'
   const db = getDb()
   const latest = getLatestResumeVersion(db, req.user.id)
-  if (!latest) return res.json({ hasResume: false })
+  if (!latest) return apiSuccess(res, { hasResume: false })
 
   const snapshot = includeSnapshot ? getResumeParsedSnapshot(db, latest.id) : null
-  return res.json({
+  return apiSuccess(res, {
     hasResume: true,
     resumeVersion: latest.version_label,
     status: latest.status,
@@ -602,15 +584,9 @@ router.get('/me/status', authMiddleware, (req, res) => {
 })
 
 // Module 3: Create a LaTeX template (versioned by template_key).
-router.post('/me/templates', authMiddleware, (req, res) => {
+router.post('/me/templates', authMiddleware, validate({ body: resumeTemplateBody }), (req, res) => {
   const db = getDb()
-  const templateKey = String(req.body?.templateKey || '').trim()
-  const name = String(req.body?.name || '').trim()
-  const latexSource = String(req.body?.latexSource || '')
-
-  if (!templateKey) return res.status(400).json({ message: 'templateKey is required' })
-  if (!name) return res.status(400).json({ message: 'name is required' })
-  if (!latexSource.trim()) return res.status(400).json({ message: 'latexSource is required' })
+  const { templateKey, name, latexSource } = req.body
 
   const now = new Date().toISOString()
   const row = db
@@ -626,31 +602,22 @@ router.post('/me/templates', authMiddleware, (req, res) => {
     .run(templateKey, nextVersion, name, latexSource, now, now)
 
   const template = db.prepare('SELECT * FROM latex_templates WHERE id = ?').get(ins.lastInsertRowid)
-  return res.status(201).json({ template })
+  return apiCreated(res, { template })
 })
 
 // Module 3: Enqueue resume rendering (structured data -> LaTeX -> PDF).
-router.post('/me/render', authMiddleware, limitResumeRender, async (req, res, next) => {
+router.post('/me/render', authMiddleware, limitResumeRender, validate({ body: resumeRenderBody }), async (req, res, next) => {
   const userId = req.user.id
   const tenantId = getTenantIdFromRequest(req)
-  const templateId = Number(req.body?.templateId)
-  const resumeVersion = String(req.body?.resumeVersion || '').trim()
+  const { templateId, resumeVersion } = req.body
 
-  if (!Number.isFinite(templateId)) return res.status(400).json({ message: 'templateId is required' })
-  if (!resumeVersion) return res.status(400).json({ message: 'resumeVersion is required' })
-  if (!isQueueingAvailable()) return res.status(503).json({ message: 'Rendering queue is not available' })
+  if (!isQueueingAvailable()) return apiError(res, { status: 503, message: 'Rendering queue is not available' })
 
   const db = getDb()
 
   const renderCheck = checkUsageLimit(db, { tenantId, featureKey: 'resume_renders_per_month', incrementBy: 1 })
   if (!renderCheck.ok) {
-    return res.status(429).json({
-      message: renderCheck.message,
-      code: renderCheck.code,
-      limit: renderCheck.limit ?? null,
-      used: renderCheck.used ?? null,
-      period: renderCheck.period ?? null,
-    })
+    return apiTooMany(res, { message: renderCheck.message })
   }
   const versionRow = db
     .prepare(
@@ -662,10 +629,10 @@ router.post('/me/render', authMiddleware, limitResumeRender, async (req, res, ne
     )
     .get(userId, resumeVersion)
 
-  if (!versionRow) return res.status(404).json({ message: 'Resume version not found' })
+  if (!versionRow) return apiNotFound(res, 'Resume version not found')
 
   const tmpl = db.prepare('SELECT id FROM latex_templates WHERE id = ?').get(templateId)
-  if (!tmpl) return res.status(404).json({ message: 'Template not found' })
+  if (!tmpl) return apiNotFound(res, 'Template not found')
 
   const now = new Date().toISOString()
   const ins = db
@@ -743,27 +710,20 @@ router.post('/me/render', authMiddleware, limitResumeRender, async (req, res, ne
     })
 
     if (!enq.ok) {
-      return res.status(429).json({
-        message: enq.message,
-        code: enq.code,
-        limit: enq.limit ?? null,
-        used: enq.used ?? null,
-        retryAfterSec: enq.retryAfterSec ?? 60,
-      })
+      return apiTooMany(res, { message: enq.message, retryAfterSec: enq.retryAfterSec ?? 60 })
     }
 
     if (enq.warning) res.setHeader('X-StudentOS-Quota-Warn', enq.warning)
-    return res.status(202).json({ ok: true, renderId, status: 'QUEUED' })
+    return apiSuccess(res, { renderId, status: 'QUEUED' }, { status: 202 })
   } catch (err) {
     return next(err)
   }
 })
 
 // Module 3: Poll render status (and download when READY).
-router.get('/me/render/:renderId', authMiddleware, (req, res) => {
+router.get('/me/render/:renderId', authMiddleware, validate({ params: renderIdParam }), (req, res) => {
   const db = getDb()
-  const renderId = Number(req.params.renderId)
-  if (!Number.isFinite(renderId)) return res.status(400).json({ message: 'Invalid renderId' })
+  const renderId = req.params.renderId
 
   const tenantId = req.auth?.tenantId || null
 
@@ -775,14 +735,13 @@ router.get('/me/render/:renderId', authMiddleware, (req, res) => {
        LIMIT 1`
     )
     .get(renderId, req.user.id, tenantId ? String(tenantId) : null)
-  if (!row) return res.status(404).json({ message: 'Render not found' })
-  return res.json({ renderId: row.id, status: row.status, errorText: row.error_text || null, updatedAt: row.updated_at })
+  if (!row) return apiNotFound(res, 'Render not found')
+  return apiSuccess(res, { renderId: row.id, status: row.status, errorText: row.error_text || null, updatedAt: row.updated_at })
 })
 
-router.get('/me/render/:renderId/download', authMiddleware, async (req, res) => {
+router.get('/me/render/:renderId/download', authMiddleware, validate({ params: renderIdParam }), async (req, res) => {
   const db = getDb()
-  const renderId = Number(req.params.renderId)
-  if (!Number.isFinite(renderId)) return res.status(400).json({ message: 'Invalid renderId' })
+  const renderId = req.params.renderId
 
   const tenantId = req.auth?.tenantId || null
 
@@ -794,45 +753,52 @@ router.get('/me/render/:renderId/download', authMiddleware, async (req, res) => 
        LIMIT 1`
     )
     .get(renderId, req.user.id, tenantId ? String(tenantId) : null)
-  if (!row) return res.status(404).json({ message: 'Render not found' })
-  if (row.status !== 'READY') return res.status(409).json({ message: 'Render not ready' })
-  if (!row.output_pdf_path) return res.status(500).json({ message: 'Missing output' })
+  if (!row) return apiNotFound(res, 'Render not found')
+  if (row.status !== 'READY') return apiError(res, { status: 409, message: 'Render not ready' })
+  if (!row.output_pdf_path) return apiError(res, { status: 500, message: 'Missing output' })
 
-  return res.download(row.output_pdf_path, `resume-${renderId}.pdf`)
+  // Prevent path traversal — only serve files from the expected data directory.
+  const resolved = path.resolve(row.output_pdf_path)
+  const dataRoot = path.resolve('data')
+  if (!resolved.startsWith(dataRoot + path.sep)) {
+    return apiForbidden(res, 'Invalid file path')
+  }
+
+  return res.download(resolved, `resume-${renderId}.pdf`)
 })
 
 // Get resume
-router.get('/:userId', authMiddleware, (req, res) => {
+router.get('/:userId', authMiddleware, validate({ params: userIdParam }), (req, res) => {
   const { userId } = req.params
   const db = getDb()
   const tenantId = getTenantIdFromRequest(req)
 
   if (!canReadUserParam(req, userId)) {
-    return res.status(403).json({ message: 'Forbidden' })
+    return apiForbidden(res)
   }
 
-  if (!requireUserInTenant(db, { tenantId, userId })) return res.status(403).json({ message: 'Forbidden' })
+  if (!requireUserInTenant(db, { tenantId, userId })) return apiForbidden(res)
 
   const resume = loadResume(db, userId) || defaultResume()
-  return res.json(resume)
+  return apiSuccess(res, resume)
 })
 
 // Analyze resume
-router.post('/:userId/analyze', authMiddleware, (req, res) => {
+router.post('/:userId/analyze', authMiddleware, validate({ params: userIdParam }), (req, res) => {
   const { userId } = req.params
   const db = getDb()
   const tenantId = getTenantIdFromRequest(req)
 
   if (!canReadUserParam(req, userId)) {
-    return res.status(403).json({ message: 'Forbidden' })
+    return apiForbidden(res)
   }
 
-  if (!requireUserInTenant(db, { tenantId, userId })) return res.status(403).json({ message: 'Forbidden' })
+  if (!requireUserInTenant(db, { tenantId, userId })) return apiForbidden(res)
 
   const resume = loadResume(db, userId)
 
   if (!resume) {
-    return res.status(404).json({ message: 'Resume not found' })
+    return apiNotFound(res, 'Resume not found')
   }
 
   const qualityScore = calculateQualityScore(resume)
@@ -846,7 +812,7 @@ router.post('/:userId/analyze', authMiddleware, (req, res) => {
   if (!resume.experience || resume.experience.length === 0) atsScore -= 25
   if (!resume.skills || resume.skills.length === 0) atsScore -= 20
 
-  res.json({
+  return apiSuccess(res, {
     qualityScore: Math.max(0, qualityScore),
     atsScore: Math.max(0, atsScore),
     missingSkills: missingSkills.slice(0, 10),

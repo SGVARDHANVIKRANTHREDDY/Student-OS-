@@ -1,16 +1,17 @@
 import TasksSection from '../components/TasksSection'
 import { useAuth } from '../context/AuthContext'
+import './Admin.css'
 
 export default function Tasks() {
   const { user, token } = useAuth()
 
   return (
-    <div>
-      <h2 style={{ margin: 0, color: '#111827' }}>Tasks</h2>
-      <p style={{ marginTop: 6, color: '#6b7280', fontSize: 13 }}>
+    <div className="admin-page">
+      <h2>Tasks</h2>
+      <p className="subtitle">
         Manage assignments and exams in one place.
       </p>
-      <div style={{ marginTop: 16 }}>
+      <div className="section-wrap">
         <TasksSection userId={user?.id} token={token} />
       </div>
     </div>

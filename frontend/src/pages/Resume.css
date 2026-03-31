@@ -1,31 +1,46 @@
+/* ─── Resume Page ─── */
 .resume-page {
-  padding: 30px;
+  padding: var(--space-6);
   max-width: 1600px;
   margin: 0 auto;
   width: 100%;
-  background: #f5f5f5;
   display: block;
 }
 
 .resume-page h2 {
-  font-size: 28px;
-  color: #333;
-  margin: 0 0 5px 0;
+  font-size: var(--text-2xl);
+  font-weight: var(--font-extrabold);
+  color: var(--color-text);
+  margin: 0 0 var(--space-1) 0;
+  letter-spacing: -0.025em;
   display: block;
 }
 
+.resume-page .subtitle {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  margin: 0 0 var(--space-6) 0;
+}
+
 .page-subtitle {
-  color: #999;
-  font-size: 14px;
-  margin: 0 0 30px 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  margin: 0 0 var(--space-6) 0;
   display: block;
+}
+
+.resume-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-6);
+  margin-top: var(--space-6);
 }
 
 .resume-layout {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 30px;
-  margin-bottom: 30px;
+  gap: var(--space-6);
+  margin-bottom: var(--space-6);
 }
 
 .resume-form-column,
@@ -34,11 +49,12 @@
 }
 
 .resume-analysis-column {
-  margin-top: 20px;
+  margin-top: var(--space-5);
 }
 
 @media (max-width: 1200px) {
-  .resume-layout {
+  .resume-layout,
+  .resume-grid {
     grid-template-columns: 1fr;
   }
 }

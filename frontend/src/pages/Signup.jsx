@@ -1,13 +1,13 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { apiFetch } from '../lib/api'
+import { api } from '../lib/apiClient'
 import GoogleSignInButton from '../components/GoogleSignInButton'
 import './Login.css'
 
 export default function Signup() {
   const navigate = useNavigate()
-  const { loginWithAuth, login } = useAuth()
+  const { loginWithAuth, isAuthenticated, profile } = useAuth()
 
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
@@ -15,26 +15,28 @@ export default function Signup() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
+  // Redirect already-authenticated users
+  useEffect(() => {
+    if (isAuthenticated) {
+      if (profile?.onboarded) {
+        navigate('/app', { replace: true })
+      } else {
+        navigate('/onboarding', { replace: true })
+      }
+    }
+  }, [isAuthenticated, profile, navigate])
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
     setLoading(true)
 
     try {
-      const res = await apiFetch('/api/auth/signup', {
-        method: 'POST',
-        body: { name, email, password },
-      })
-
-      if (!res.ok) {
-        setError(res.data?.message || 'Account creation failed')
-        return
-      }
-
-      login({ token: res.data.token, user: res.data.user, profile: res.data.profile })
-      navigate('/onboarding')
+      const data = await api.post('/api/auth/signup', { name, email, password })
+      loginWithAuth({ token: data.token, user: data.user, profile: data.profile, auth: data.auth })
+      navigate(data.profile?.onboarded ? '/app' : '/onboarding')
     } catch (err) {
-      setError('Network error. Please try again.')
+      setError(err?.message || 'Account creation failed')
     } finally {
       setLoading(false)
     }
@@ -44,24 +46,11 @@ export default function Signup() {
     setError('')
     setLoading(true)
     try {
-      const res = await apiFetch('/api/auth/google', {
-        method: 'POST',
-        body: { credential },
-      })
-
-      if (!res.ok) {
-        setError(res.data?.message || 'Google sign-in failed')
-        return
-      }
-
-      if (res.data?.auth !== undefined) {
-        loginWithAuth({ token: res.data.token, user: res.data.user, profile: res.data.profile, auth: res.data.auth })
-      } else {
-        login({ token: res.data.token, user: res.data.user, profile: res.data.profile })
-      }
-      navigate(res.data?.profile?.onboarded ? '/app' : '/onboarding')
-    } catch {
-      setError('Network error. Please try again.')
+      const data = await api.post('/api/auth/google', { credential })
+      loginWithAuth({ token: data.token, user: data.user, profile: data.profile, auth: data.auth })
+      navigate(data.profile?.onboarded ? '/app' : '/onboarding')
+    } catch (err) {
+      setError(err?.message || 'Google sign-in failed')
     } finally {
       setLoading(false)
     }
@@ -71,7 +60,7 @@ export default function Signup() {
     <div className="login-container">
       <div className="login-card">
         <h1>Create your Student System</h1>
-        <p className="signup-hint" style={{ marginTop: 6 }}>
+        <p className="signup-hint">
           One workspace for academics, skills, resume, and placement readiness.
         </p>
 

@@ -1,94 +1,56 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { useAuth } from '../context/AuthContext'
-import { apiFetch } from '../lib/api'
+import { useJob, useSaveJob, useUnsaveJob, useCreateApplication } from '../hooks/useApi'
+import { useToast } from '../components/Toast'
+import Spinner from '../components/Spinner'
 import './JobDetails.css'
 
 export default function JobDetails() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { token } = useAuth()
+  const toast = useToast()
 
-  const [job, setJob] = useState(null)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
+  const { data: jobRes, isLoading: loading, error: fetchError } = useJob(id)
+  const job = jobRes?.data ?? jobRes ?? null
 
-  const [saving, setSaving] = useState(false)
+  const saveJob = useSaveJob()
+  const unsaveJob = useUnsaveJob()
+  const createApplication = useCreateApplication()
+
   const [resumeVersion, setResumeVersion] = useState('')
-  const [applying, setApplying] = useState(false)
-  const [applyError, setApplyError] = useState('')
   const [applySuccess, setApplySuccess] = useState('')
 
-  const jobId = useMemo(() => String(id || ''), [id])
+  const error = fetchError ? (fetchError.message || 'Failed to load job') : ''
 
-  useEffect(() => {
-    const load = async () => {
-      setLoading(true)
-      setError('')
-      try {
-        const res = await apiFetch(`/api/jobs/${encodeURIComponent(jobId)}`, { token })
-        if (!res.ok) {
-          setJob(null)
-          setError(res.data?.message || 'Failed to load job')
-          return
-        }
-        setJob(res.data)
-      } catch {
-        setJob(null)
-        setError('Failed to load job')
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    if (jobId) load()
-  }, [jobId, token])
-
-  const toggleSave = async () => {
+  const toggleSave = () => {
     if (!job) return
-    setSaving(true)
-    try {
-      const method = job.isSaved ? 'DELETE' : 'POST'
-      const res = await apiFetch(`/api/jobs/${encodeURIComponent(job.id)}/save`, { token, method })
-      if (res.ok) {
-        setJob({ ...job, isSaved: !job.isSaved })
-      }
-    } finally {
-      setSaving(false)
-    }
+    const mutation = job.isSaved ? unsaveJob : saveJob
+    mutation.mutate(job.id)
   }
 
-  const apply = async (e) => {
+  const apply = (e) => {
     e.preventDefault()
-    setApplyError('')
     setApplySuccess('')
 
     const v = resumeVersion.trim()
     if (!v) {
-      setApplyError('Resume version is required')
+      toast.error('Resume version is required')
       return
     }
 
-    setApplying(true)
-    try {
-      const res = await apiFetch('/api/applications', {
-        token,
-        method: 'POST',
-        body: { jobId: jobId, resumeVersion: v },
-      })
-
-      if (!res.ok) {
-        setApplyError(res.data?.message || 'Application failed')
-        return
-      }
-
-      setApplySuccess('Application submitted. Track status in Applications.')
-      setResumeVersion('')
-    } catch {
-      setApplyError('Application failed')
-    } finally {
-      setApplying(false)
-    }
+    createApplication.mutate(
+      { jobId: String(id), resumeVersion: v },
+      {
+        onSuccess: () => {
+          setApplySuccess('Application submitted. Track status in Applications.')
+          setResumeVersion('')
+          toast.success('Application submitted!')
+        },
+        onError: (err) => {
+          toast.error(err.message || 'Application failed')
+        },
+      },
+    )
   }
 
   const canApply = (job) => {
@@ -109,7 +71,7 @@ export default function JobDetails() {
 
   return (
     <div className="job-details">
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center' }}>
+      <div className="page-header">
         <div>
           <h2>Job Details</h2>
           <p className="subtitle">Review role details, save, and apply with a resume version.</p>
@@ -117,7 +79,7 @@ export default function JobDetails() {
         <button className="jobs-btn secondary" onClick={() => navigate('/app/jobs')}>Back to Jobs</button>
       </div>
 
-      {loading && <div className="notice">Loading job…</div>}
+      {loading && <Spinner />}
       {error && <div className="notice error">{error}</div>}
 
       {job && (
@@ -125,10 +87,10 @@ export default function JobDetails() {
           <div className="details-card">
             <div className="details-header">
               <div>
-                <h2 style={{ fontSize: 18 }}>{job.title}</h2>
+                <h2 className="details-title">{job.title}</h2>
                 <div className="subtitle">{job.company}</div>
               </div>
-              <button className="jobs-btn" disabled={saving} onClick={toggleSave}>
+              <button className="jobs-btn" disabled={saveJob.isPending || unsaveJob.isPending} onClick={toggleSave}>
                 {job.isSaved ? 'Saved' : 'Save'}
               </button>
             </div>
@@ -154,13 +116,13 @@ export default function JobDetails() {
           </div>
 
           <div className="apply-card">
-            <h3 style={{ margin: 0, color: '#111827' }}>Apply</h3>
-            <p className="subtitle" style={{ marginBottom: 10 }}>
+            <h3>Apply</h3>
+            <p className="subtitle">
               Submit an application and start tracking status.
             </p>
 
             {!canApply(job) && (
-              <div className="notice error" style={{ marginTop: 10 }}>
+              <div className="notice error">
                 {applyBlockedReason(job)}
               </div>
             )}
@@ -174,18 +136,17 @@ export default function JobDetails() {
                   placeholder="e.g., Jan-2026, v3"
                 />
               </div>
-              <button className="jobs-btn" disabled={applying || !canApply(job)}>
-                {applying ? 'Submitting…' : 'Submit application'}
+              <button className="jobs-btn" disabled={createApplication.isPending || !canApply(job)}>
+                {createApplication.isPending ? 'Submitting…' : 'Submit application'}
               </button>
             </form>
 
-            {applyError && <div className="notice error" style={{ marginTop: 10 }}>{applyError}</div>}
+            {createApplication.isError && <div className="notice error">{createApplication.error?.message || 'Application failed'}</div>}
             {applySuccess && (
-              <div className="notice success" style={{ marginTop: 10 }}>
+              <div className="notice success">
                 {applySuccess}{' '}
                 <button
                   className="jobs-btn secondary"
-                  style={{ marginLeft: 10 }}
                   type="button"
                   onClick={() => navigate('/app/applications')}
                 >

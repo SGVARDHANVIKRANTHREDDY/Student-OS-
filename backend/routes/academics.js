@@ -4,6 +4,9 @@ import { getDb } from '../lib/db.js'
 import { getTenantIdFromRequest } from '../lib/tenancy.js'
 import { hasPermission } from '../lib/rbac.js'
 import { requireUserInTenant } from '../lib/tenantScope.js'
+import { validate } from '../lib/validate.js'
+import { subjectBody, attendanceBody, attendanceRecordBody, careerGoalBody, userIdParam } from '../lib/schemas.js'
+import { apiSuccess, apiForbidden, apiError } from '../lib/apiResponse.js'
 
 const router = express.Router()
 
@@ -96,25 +99,14 @@ function getSnapshot(db, { tenantId, userId }) {
   }
 }
 
-router.post('/:userId/academics', authMiddleware, (req, res) => {
+router.post('/:userId/academics', authMiddleware, validate({ params: userIdParam, body: subjectBody }), (req, res) => {
   const { userId } = req.params
-  if (!canWriteAcademics(req)) return res.status(403).json({ message: 'Forbidden' })
+  if (!canWriteAcademics(req)) return apiForbidden(res)
   const { subject, score, grade } = req.body
-
-  const normalizedSubject = String(subject || '').trim()
-  const scoreNumber = Number(score)
-  const gradeValue = String(grade || 'N/A').trim() || 'N/A'
-
-  if (!normalizedSubject) {
-    return res.status(400).json({ message: 'Subject is required' })
-  }
-  if (!Number.isFinite(scoreNumber) || scoreNumber < 0 || scoreNumber > 100) {
-    return res.status(400).json({ message: 'Score must be a number between 0 and 100' })
-  }
 
   const db = getDb()
   const tenantId = getTenantIdFromRequest(req)
-  if (!requireUserInTenant(db, { tenantId, userId })) return res.status(403).json({ message: 'Forbidden' })
+  if (!requireUserInTenant(db, { tenantId, userId })) return apiForbidden(res)
   ensureMeta(db, { tenantId, userId })
 
   const now = new Date().toISOString()
@@ -125,56 +117,47 @@ router.post('/:userId/academics', authMiddleware, (req, res) => {
        score = excluded.score,
        grade = excluded.grade,
        updated_at = excluded.updated_at`
-  ).run(tenantId, userId, normalizedSubject, scoreNumber, gradeValue, req.user?.id || null, now, now)
+  ).run(tenantId, userId, subject, score, grade, req.user?.id || null, now, now)
 
-  return res.json(getSnapshot(db, { tenantId, userId }))
+  return apiSuccess(res, getSnapshot(db, { tenantId, userId }))
 })
 
-router.get('/:userId/academics', authMiddleware, (req, res) => {
+router.get('/:userId/academics', authMiddleware, validate({ params: userIdParam }), (req, res) => {
   const { userId } = req.params
-  if (!canReadAcademics(req, userId)) return res.status(403).json({ message: 'Forbidden' })
+  if (!canReadAcademics(req, userId)) return apiForbidden(res)
   const db = getDb()
   const tenantId = getTenantIdFromRequest(req)
-  if (!requireUserInTenant(db, { tenantId, userId })) return res.status(403).json({ message: 'Forbidden' })
-  return res.json(getSnapshot(db, { tenantId, userId }))
+  if (!requireUserInTenant(db, { tenantId, userId })) return apiForbidden(res)
+  return apiSuccess(res, getSnapshot(db, { tenantId, userId }))
 })
 
-router.post('/:userId/attendance', authMiddleware, (req, res) => {
+router.post('/:userId/attendance', authMiddleware, validate({ params: userIdParam, body: attendanceBody }), (req, res) => {
   const { userId } = req.params
-  if (!canWriteAcademics(req)) return res.status(403).json({ message: 'Forbidden' })
+  if (!canWriteAcademics(req)) return apiForbidden(res)
   const { attendance } = req.body
 
-  const attendanceNumber = Number(attendance)
-
-  if (!Number.isFinite(attendanceNumber) || attendanceNumber < 0 || attendanceNumber > 100) {
-    return res.status(400).json({ message: 'Attendance must be between 0 and 100' })
-  }
-
   const db = getDb()
   const tenantId = getTenantIdFromRequest(req)
-  if (!requireUserInTenant(db, { tenantId, userId })) return res.status(403).json({ message: 'Forbidden' })
+  if (!requireUserInTenant(db, { tenantId, userId })) return apiForbidden(res)
   ensureMeta(db, { tenantId, userId })
   const now = new Date().toISOString()
   db.prepare(
     `UPDATE academics_meta SET attendance = ?, updated_at = ? WHERE tenant_id = ? AND user_id = ?`
-  ).run(Math.round(attendanceNumber), now, tenantId, userId)
+  ).run(Math.round(attendance), now, tenantId, userId)
 
-  return res.json(getSnapshot(db, { tenantId, userId }))
+  return apiSuccess(res, getSnapshot(db, { tenantId, userId }))
 })
 
 // Admin-only: daily attendance
-router.post('/:userId/attendance/record', authMiddleware, (req, res) => {
+router.post('/:userId/attendance/record', authMiddleware, validate({ params: userIdParam, body: attendanceRecordBody }), (req, res) => {
   const { userId } = req.params
-  if (!canWriteAcademics(req)) return res.status(403).json({ message: 'Forbidden' })
+  if (!canWriteAcademics(req)) return apiForbidden(res)
 
-  const day = String(req.body?.day || '').trim()
-  const status = String(req.body?.status || '').trim().toUpperCase()
-  if (!day) return res.status(400).json({ message: 'day is required (YYYY-MM-DD)' })
-  if (!['PRESENT', 'ABSENT'].includes(status)) return res.status(400).json({ message: "status must be 'PRESENT' or 'ABSENT'" })
+  const { day, status } = req.body
 
   const db = getDb()
   const tenantId = getTenantIdFromRequest(req)
-  if (!requireUserInTenant(db, { tenantId, userId })) return res.status(403).json({ message: 'Forbidden' })
+  if (!requireUserInTenant(db, { tenantId, userId })) return apiForbidden(res)
 
   const now = new Date().toISOString()
   db.prepare(
@@ -186,31 +169,25 @@ router.post('/:userId/attendance/record', authMiddleware, (req, res) => {
        created_by_user_id = excluded.created_by_user_id`
   ).run(tenantId, userId, day, status, req.user?.id || null, now, now)
 
-  return res.json(getSnapshot(db, { tenantId, userId }))
+  return apiSuccess(res, getSnapshot(db, { tenantId, userId }))
 })
 
-router.post('/:userId/career-goal', authMiddleware, (req, res) => {
+router.post('/:userId/career-goal', authMiddleware, validate({ params: userIdParam, body: careerGoalBody }), (req, res) => {
   const { userId } = req.params
   const isSelf = String(req.user?.id || '') === String(userId || '')
-  if (!isSelf && !canWriteAcademics(req)) return res.status(403).json({ message: 'Forbidden' })
+  if (!isSelf && !canWriteAcademics(req)) return apiForbidden(res)
   const { goal } = req.body
-
-  const goalValue = String(goal || '').trim()
-
-  if (!goalValue) {
-    return res.status(400).json({ message: 'Career goal required' })
-  }
 
   const db = getDb()
   const tenantId = getTenantIdFromRequest(req)
-  if (!requireUserInTenant(db, { tenantId, userId })) return res.status(403).json({ message: 'Forbidden' })
+  if (!requireUserInTenant(db, { tenantId, userId })) return apiForbidden(res)
   ensureMeta(db, { tenantId, userId })
   const now = new Date().toISOString()
   db.prepare(
     `UPDATE academics_meta SET career_goal = ?, updated_at = ? WHERE tenant_id = ? AND user_id = ?`
-  ).run(goalValue, now, tenantId, userId)
+  ).run(goal, now, tenantId, userId)
 
-  return res.json(getSnapshot(db, { tenantId, userId }))
+  return apiSuccess(res, getSnapshot(db, { tenantId, userId }))
 })
 
 export default router

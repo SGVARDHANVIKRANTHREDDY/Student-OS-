@@ -1,6 +1,10 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
-import { apiFetch } from '../lib/api'
+import { useSkills, useMatchingRoles, useSkillGapAnalysis } from '../hooks/useApi'
+import { useToast } from '../components/Toast'
+import Spinner from '../components/Spinner'
+import EmptyState from '../components/EmptyState'
+import './Skills.css'
 
 function normalizeRoleId(value) {
   const v = String(value || '').trim()
@@ -8,121 +12,73 @@ function normalizeRoleId(value) {
 }
 
 export default function Skills() {
-  const { user, token } = useAuth()
+  const { user } = useAuth()
+  const toast = useToast()
 
-  const [items, setItems] = useState([])
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
+  const { data: skillsRes, isLoading: loading, error: fetchError } = useSkills()
+  const items = skillsRes?.data?.items ?? skillsRes?.items ?? []
+  const error = fetchError ? (fetchError.message || 'Failed to load skills') : ''
 
-  const [roles, setRoles] = useState([])
+  const { data: rolesRes } = useMatchingRoles()
+  const roles = rolesRes?.data ?? (Array.isArray(rolesRes) ? rolesRes : [])
+
+  const gapAnalysis = useSkillGapAnalysis()
+
   const [targetMode, setTargetMode] = useState('role')
   const [roleId, setRoleId] = useState('')
   const [jobDescription, setJobDescription] = useState('')
-  const [gapLoading, setGapLoading] = useState(false)
-  const [gapError, setGapError] = useState('')
-  const [gapResult, setGapResult] = useState(null)
 
   const canAnalyze = useMemo(() => {
     if (targetMode === 'role') return !!normalizeRoleId(roleId)
     return !!String(jobDescription || '').trim()
   }, [jobDescription, roleId, targetMode])
 
-  useEffect(() => {
-    const loadSkills = async () => {
-      if (!token) return
-      setLoading(true)
-      setError('')
-      const res = await apiFetch('/api/skills/me', { token })
-      if (!res.ok) {
-        setItems([])
-        setError(res.data?.message || 'Failed to load skills')
-        setLoading(false)
-        return
-      }
-      setItems(Array.isArray(res.data?.items) ? res.data.items : [])
-      setLoading(false)
-    }
-
-    loadSkills()
-  }, [token])
-
-  useEffect(() => {
-    const loadRoles = async () => {
-      if (!token) return
-      try {
-        const res = await fetch('/api/matching/roles/list', {
-          headers: { Authorization: `Bearer ${token}` },
-        })
-        const data = await res.json()
-        if (Array.isArray(data)) setRoles(data)
-      } catch {
-        // best-effort
-      }
-    }
-
-    loadRoles()
-  }, [token])
-
-  const analyze = async () => {
-    if (!user?.id || !token) return
-    if (!canAnalyze) return
-
-    setGapLoading(true)
-    setGapError('')
-    setGapResult(null)
+  const analyze = () => {
+    if (!user?.id || !canAnalyze) return
 
     const body = {
+      userId: user.id,
       roleId: targetMode === 'role' ? normalizeRoleId(roleId) : '',
       jobDescription: targetMode === 'custom' ? String(jobDescription || '') : '',
     }
 
-    const res = await apiFetch(`/api/skills/${encodeURIComponent(user.id)}/skill-gaps`, {
-      token,
-      method: 'POST',
-      body,
+    gapAnalysis.mutate(body, {
+      onError: (err) => toast.error(err.message || 'Failed to analyze skill gaps'),
     })
-
-    if (!res.ok) {
-      setGapError(res.data?.message || 'Failed to analyze skill gaps')
-      setGapLoading(false)
-      return
-    }
-
-    setGapResult(res.data)
-    setGapLoading(false)
   }
 
   return (
-    <div>
-      <h2 style={{ margin: 0, color: '#111827' }}>Skills</h2>
-      <p style={{ marginTop: 6, color: '#6b7280', fontSize: 13 }}>
+    <div className="skills-page">
+      <h2>Skills</h2>
+      <p className="subtitle">
         Your skills profile is derived from your resume and learning completions.
       </p>
 
-      <div style={{ marginTop: 16, padding: 14, border: '1px solid #e5e7eb', borderRadius: 10, background: '#fff' }}>
-        <div style={{ fontWeight: 700, color: '#111827' }}>My Skills</div>
-        <div style={{ marginTop: 6, color: '#6b7280', fontSize: 13 }}>
+      <div className="skills-card">
+        <div className="skills-card-title">My Skills</div>
+        <div className="skills-card-desc">
           Read-only for students.
         </div>
 
-        {loading && <div style={{ marginTop: 12, color: '#6b7280', fontSize: 13 }}>Loading…</div>}
-        {error && <div style={{ marginTop: 12, color: '#b91c1c', fontSize: 13 }}>{error}</div>}
+        {loading && <Spinner size="sm" />}
+        {error && <div className="skills-state error">{error}</div>}
 
         {!loading && !error && items.length === 0 && (
-          <div style={{ marginTop: 12, color: '#6b7280', fontSize: 13 }}>
-            No skills yet. Upload a resume and complete learning courses to build your profile.
-          </div>
+          <EmptyState
+            title="No skills yet"
+            message="Upload a resume and complete learning courses to build your profile."
+          />
         )}
 
         {!loading && !error && items.length > 0 && (
-          <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10 }}>
+          <div className="skills-grid">
             {items.map((s) => (
-              <div key={s.normalizedId} style={{ border: '1px solid #e5e7eb', borderRadius: 10, padding: 12 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
-                  <div style={{ fontWeight: 700, color: '#111827' }}>{s.name}</div>
-                  <div style={{ color: '#6b7280', fontSize: 12 }}>{Number(s.proficiency || 0)}%</div>
+              <div key={s.normalizedId} className="skill-item">
+                <div className="skill-item-header">
+                  <div className="skill-item-name">{s.name}</div>
+                  <div className="skill-item-proficiency">{Number(s.proficiency || 0)}%</div>
                 </div>
-                <div style={{ marginTop: 6, color: '#6b7280', fontSize: 12 }}>
+                <div className="skill-item-source">
                   Source: {s.source || 'unknown'}
                 </div>
               </div>
@@ -131,48 +87,33 @@ export default function Skills() {
         )}
       </div>
 
-      <div style={{ marginTop: 18, padding: 14, border: '1px solid #e5e7eb', borderRadius: 10, background: '#fff' }}>
-        <div style={{ fontWeight: 700, color: '#111827' }}>Skill Gap Analyzer</div>
-        <div style={{ marginTop: 6, color: '#6b7280', fontSize: 13 }}>
+      <div className="gap-analyzer">
+        <div className="skills-card-title">Skill Gap Analyzer</div>
+        <div className="skills-card-desc">
           Compare your skills against a target role or job description.
         </div>
 
-        <div style={{ marginTop: 10, display: 'flex', gap: 8 }}>
+        <div className="gap-mode-toggle">
           <button
             onClick={() => setTargetMode('role')}
-            style={{
-              padding: '8px 10px',
-              borderRadius: 8,
-              border: '1px solid #e5e7eb',
-              background: targetMode === 'role' ? '#111827' : '#fff',
-              color: targetMode === 'role' ? '#fff' : '#111827',
-              cursor: 'pointer',
-            }}
+            className={`gap-mode-btn${targetMode === 'role' ? ' active' : ''}`}
           >
             Preset Role
           </button>
           <button
             onClick={() => setTargetMode('custom')}
-            style={{
-              padding: '8px 10px',
-              borderRadius: 8,
-              border: '1px solid #e5e7eb',
-              background: targetMode === 'custom' ? '#111827' : '#fff',
-              color: targetMode === 'custom' ? '#fff' : '#111827',
-              cursor: 'pointer',
-            }}
+            className={`gap-mode-btn${targetMode === 'custom' ? ' active' : ''}`}
           >
             Custom Description
           </button>
         </div>
 
         {targetMode === 'role' ? (
-          <div style={{ marginTop: 10 }}>
-            <label style={{ display: 'block', color: '#6b7280', fontSize: 12, marginBottom: 6 }}>Role</label>
+          <div className="gap-field">
+            <label>Role</label>
             <select
               value={roleId}
               onChange={(e) => setRoleId(e.target.value)}
-              style={{ width: '100%', padding: 10, borderRadius: 10, border: '1px solid #e5e7eb' }}
             >
               <option value="">Select a role…</option>
               {roles.map((r) => (
@@ -183,81 +124,64 @@ export default function Skills() {
             </select>
           </div>
         ) : (
-          <div style={{ marginTop: 10 }}>
-            <label style={{ display: 'block', color: '#6b7280', fontSize: 12, marginBottom: 6 }}>Job description</label>
+          <div className="gap-field">
+            <label>Job description</label>
             <textarea
               value={jobDescription}
               onChange={(e) => setJobDescription(e.target.value)}
               rows={6}
               placeholder="Paste a job description…"
-              style={{ width: '100%', padding: 10, borderRadius: 10, border: '1px solid #e5e7eb' }}
             />
           </div>
         )}
 
-        <div style={{ marginTop: 10, display: 'flex', gap: 10, alignItems: 'center' }}>
+        <div className="gap-actions">
           <button
             onClick={analyze}
-            disabled={gapLoading || !canAnalyze}
-            style={{
-              padding: '10px 12px',
-              borderRadius: 10,
-              border: '1px solid #111827',
-              background: '#111827',
-              color: '#fff',
-              cursor: gapLoading || !canAnalyze ? 'not-allowed' : 'pointer',
-              opacity: gapLoading || !canAnalyze ? 0.7 : 1,
-            }}
+            disabled={gapAnalysis.isPending || !canAnalyze}
+            className="gap-btn-primary"
           >
-            {gapLoading ? 'Analyzing…' : 'Analyze'}
+            {gapAnalysis.isPending ? 'Analyzing…' : 'Analyze'}
           </button>
           <button
-            onClick={() => {
-              setGapResult(null)
-              setGapError('')
-            }}
-            disabled={gapLoading}
-            style={{
-              padding: '10px 12px',
-              borderRadius: 10,
-              border: '1px solid #e5e7eb',
-              background: '#fff',
-              color: '#111827',
-              cursor: gapLoading ? 'not-allowed' : 'pointer',
-              opacity: gapLoading ? 0.7 : 1,
-            }}
+            onClick={() => gapAnalysis.reset()}
+            disabled={gapAnalysis.isPending}
+            className="gap-btn-secondary"
           >
             Clear
           </button>
         </div>
 
-        {gapError && <div style={{ marginTop: 10, color: '#b91c1c', fontSize: 13 }}>{gapError}</div>}
+        {gapAnalysis.isError && <div className="gap-error">{gapAnalysis.error?.message || 'Analysis failed'}</div>}
 
-        {gapResult && (
-          <div style={{ marginTop: 12 }}>
-            <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', color: '#6b7280', fontSize: 13 }}>
-              <div>Covered: <strong style={{ color: '#111827' }}>{gapResult.skillsCovered}</strong></div>
-              <div>To learn: <strong style={{ color: '#111827' }}>{gapResult.missingSkills?.length || 0}</strong></div>
-              <div>Total: <strong style={{ color: '#111827' }}>{gapResult.totalSkillsRequired}</strong></div>
-            </div>
-
-            {(gapResult.missingSkills || []).length > 0 && (
-              <div style={{ marginTop: 10 }}>
-                <div style={{ fontWeight: 700, color: '#111827' }}>Skills to develop</div>
-                <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                  {gapResult.missingSkills.map((s, idx) => (
-                    <div
-                      key={`${s.name}-${idx}`}
-                      style={{ padding: '6px 10px', borderRadius: 999, border: '1px solid #e5e7eb', background: '#fff', color: '#111827', fontSize: 12 }}
-                    >
-                      {s.name}
-                    </div>
-                  ))}
-                </div>
+        {gapAnalysis.data && (() => {
+          const gapResult = gapAnalysis.data?.data ?? gapAnalysis.data
+          return (
+            <div className="gap-summary">
+              <div className="gap-stats">
+                <div>Covered: <strong>{gapResult.skillsCovered}</strong></div>
+                <div>To learn: <strong>{gapResult.missingSkills?.length || 0}</strong></div>
+                <div>Total: <strong>{gapResult.totalSkillsRequired}</strong></div>
               </div>
-            )}
-          </div>
-        )}
+
+              {(gapResult.missingSkills || []).length > 0 && (
+                <div className="gap-missing">
+                  <div className="gap-missing-title">Skills to develop</div>
+                  <div className="gap-missing-pills">
+                    {gapResult.missingSkills.map((s, idx) => (
+                      <div
+                        key={`${s.name}-${idx}`}
+                        className="gap-missing-pill"
+                      >
+                        {s.name}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )
+        })()}
       </div>
     </div>
   )

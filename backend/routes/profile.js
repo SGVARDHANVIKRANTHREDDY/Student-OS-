@@ -14,6 +14,9 @@ import { QUEUE_NAMES } from '../lib/queues.js'
 import { getTenantIdFromRequest } from '../lib/tenancy.js'
 import { hasPermission } from '../lib/rbac.js'
 import { requireUserInTenant } from '../lib/tenantScope.js'
+import { validate } from '../lib/validate.js'
+import { profileBody, userIdParam } from '../lib/schemas.js'
+import { apiSuccess, apiCreated, apiForbidden, apiError, apiUnauthorized } from '../lib/apiResponse.js'
 
 function canReadUserParam(req, requestedUserId) {
   if (String(req.user?.id || '') === String(requestedUserId || '')) return true
@@ -49,41 +52,54 @@ function ensureProfile(db, userId) {
 router.get('/me', authMiddleware, (req, res) => {
   const db = getDb()
   const row = ensureProfile(db, req.user.id)
-  return res.json({ profile: normalizeProfile(row) })
+  return apiSuccess(res, { profile: normalizeProfile(row) })
 })
 
-router.post('/me', authMiddleware, (req, res) => {
+router.post('/me', authMiddleware, validate({ body: profileBody }), (req, res) => {
   const db = getDb()
   const userId = req.user.id
-  const { college, branch, graduationYear, careerGoal, onboarded } = req.body || {}
-
-  if (careerGoal !== undefined && !String(careerGoal).trim()) {
-    return res.status(400).json({ message: 'Career goal is required' })
-  }
+  const { college, branch, graduationYear, careerGoal, onboarded } = req.body
 
   ensureProfile(db, userId)
   const now = new Date().toISOString()
-  db.prepare(
-    `UPDATE profiles SET
-      college = COALESCE(?, college),
-      branch = COALESCE(?, branch),
-      graduation_year = COALESCE(?, graduation_year),
-      career_goal = COALESCE(?, career_goal),
-      onboarded = COALESCE(?, onboarded),
-      updated_at = ?
-     WHERE user_id = ?`
-  ).run(
-    college ?? null,
-    branch ?? null,
-    graduationYear ?? null,
-    careerGoal ?? null,
-    typeof onboarded === 'boolean' ? (onboarded ? 1 : 0) : null,
-    now,
-    userId
-  )
+  
+  // Build dynamic UPDATE query to only update provided fields
+  const updates = []
+  const values = []
+  
+  if (college !== undefined) {
+    updates.push('college = ?')
+    values.push(college || '')
+  }
+  if (branch !== undefined) {
+    updates.push('branch = ?')
+    values.push(branch || '')
+  }
+  if (graduationYear !== undefined) {
+    updates.push('graduation_year = ?')
+    values.push(graduationYear || '')
+  }
+  if (careerGoal !== undefined) {
+    updates.push('career_goal = ?')
+    values.push(careerGoal || '')
+  }
+  if (onboarded !== undefined) {
+    updates.push('onboarded = ?')
+    values.push(onboarded ? 1 : 0)
+  }
+  
+  // Always update timestamp
+  updates.push('updated_at = ?')
+  values.push(now)
+  values.push(userId)
+  
+  if (updates.length > 1) {  // More than just updated_at
+    const sql = `UPDATE profiles SET ${updates.join(', ')} WHERE user_id = ?`
+    db.prepare(sql).run(...values)
+  }
 
   const row = db.prepare(`SELECT * FROM profiles WHERE user_id = ?`).get(userId)
-  return res.json({ profile: normalizeProfile(row) })
+  return apiSuccess(res, { profile: normalizeProfile(row) })
 })
 
 // Module 3: Persist a target job (by job_id) and trigger async matching.
@@ -93,7 +109,7 @@ router.post('/me/target-job', authMiddleware, async (req, res) => {
   const tenantId = getTenantIdFromRequest(req)
   const jobId = String(req.body?.jobId || '').trim()
 
-  if (!jobId) return res.status(400).json({ message: 'jobId is required' })
+  if (!jobId) return apiError(res, { status: 400, code: 'VALIDATION_ERROR', message: 'jobId is required' })
 
   const now = new Date().toISOString()
   db.prepare(
@@ -199,7 +215,7 @@ router.post('/me/target-job', authMiddleware, async (req, res) => {
     // ignore
   }
 
-  return res.status(201).json({ ok: true, jobId })
+  return apiCreated(res, { ok: true, jobId })
 })
 
 router.delete('/me/target-job/:jobId', authMiddleware, (req, res) => {
@@ -207,7 +223,7 @@ router.delete('/me/target-job/:jobId', authMiddleware, (req, res) => {
   const userId = req.user.id
   const tenantId = getTenantIdFromRequest(req)
   const jobId = String(req.params.jobId || '').trim()
-  if (!jobId) return res.status(400).json({ message: 'jobId is required' })
+  if (!jobId) return apiError(res, { status: 400, code: 'VALIDATION_ERROR', message: 'jobId is required' })
 
   const now = new Date().toISOString()
   db.prepare(
@@ -216,31 +232,27 @@ router.delete('/me/target-job/:jobId', authMiddleware, (req, res) => {
       WHERE user_id = ? AND tenant_id IS ? AND job_id = ?`
     ).run(now, userId, tenantId ? String(tenantId) : null, jobId)
 
-  return res.json({ ok: true })
+  return apiSuccess(res, { ok: true })
 })
 
 // Backward compatible routes
-router.get('/:userId', authMiddleware, (req, res) => {
+router.get('/:userId', authMiddleware, validate({ params: userIdParam }), (req, res) => {
   const db = getDb()
   const { userId } = req.params
-  if (!canReadUserParam(req, userId)) return res.status(403).json({ message: 'Forbidden' })
+  if (!canReadUserParam(req, userId)) return apiForbidden(res)
   const tenantId = getTenantIdFromRequest(req)
-  if (!requireUserInTenant(db, { tenantId, userId })) return res.status(403).json({ message: 'Forbidden' })
+  if (!requireUserInTenant(db, { tenantId, userId })) return apiForbidden(res)
   const row = ensureProfile(db, userId)
-  return res.json({ profile: normalizeProfile(row) })
+  return apiSuccess(res, { profile: normalizeProfile(row) })
 })
 
-router.post('/:userId', authMiddleware, (req, res) => {
+router.post('/:userId', authMiddleware, validate({ params: userIdParam, body: profileBody }), (req, res) => {
   const db = getDb()
   const { userId } = req.params
-  if (!canWriteUserParam(req, userId)) return res.status(403).json({ message: 'Forbidden' })
+  if (!canWriteUserParam(req, userId)) return apiForbidden(res)
   const tenantId = getTenantIdFromRequest(req)
-  if (!requireUserInTenant(db, { tenantId, userId })) return res.status(403).json({ message: 'Forbidden' })
-  const { college, branch, graduationYear, careerGoal, onboarded } = req.body || {}
-
-  if (careerGoal !== undefined && !String(careerGoal).trim()) {
-    return res.status(400).json({ message: 'Career goal is required' })
-  }
+  if (!requireUserInTenant(db, { tenantId, userId })) return apiForbidden(res)
+  const { college, branch, graduationYear, careerGoal, onboarded } = req.body
 
   ensureProfile(db, userId)
   const now = new Date().toISOString()
@@ -264,7 +276,7 @@ router.post('/:userId', authMiddleware, (req, res) => {
   )
 
   const row = db.prepare(`SELECT * FROM profiles WHERE user_id = ?`).get(userId)
-  return res.json({ profile: normalizeProfile(row) })
+  return apiSuccess(res, { profile: normalizeProfile(row) })
 })
 
 export default router

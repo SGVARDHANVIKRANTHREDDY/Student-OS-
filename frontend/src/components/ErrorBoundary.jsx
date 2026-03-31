@@ -1,4 +1,5 @@
 import React from 'react'
+import './ErrorBoundary.css'
 
 export default class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -11,7 +12,6 @@ export default class ErrorBoundary extends React.Component {
   }
 
   componentDidCatch(error, errorInfo) {
-    // Keep this minimal: log for developers without leaking internals into UI.
     console.error('UI crashed:', error, errorInfo)
   }
 
@@ -23,12 +23,21 @@ export default class ErrorBoundary extends React.Component {
     if (!this.state.hasError) return this.props.children
 
     return (
-      <div style={{ padding: 20 }}>
-        <h2>Something went wrong.</h2>
-        <p>Please reload the page. If this persists, sign out and sign in again.</p>
-        <button type="button" onClick={this.handleReload}>
-          Reload
-        </button>
+      <div className="error-boundary">
+        <div className="error-boundary-card">
+          <div className="error-boundary-icon">⚠️</div>
+          <h2 className="error-boundary-title">Something went wrong</h2>
+          <p className="error-boundary-text">
+            The application encountered an unexpected error. Please reload the page to continue.
+          </p>
+          <button
+            type="button"
+            onClick={this.handleReload}
+            className="error-boundary-btn"
+          >
+            Reload page
+          </button>
+        </div>
       </div>
     )
   }

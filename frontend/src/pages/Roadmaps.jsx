@@ -1,71 +1,21 @@
-import { useEffect, useMemo, useState } from 'react'
-import { useAuth } from '../context/AuthContext'
+import { useState } from 'react'
+import { useRoadmapCompanies, useRoadmapRoles, useRoadmap } from '../hooks/useApi'
+import Spinner from '../components/Spinner'
 import './Roadmaps.css'
 
 export default function Roadmaps() {
-  const { token } = useAuth()
-
-  const [companies, setCompanies] = useState([])
-  const [roles, setRoles] = useState([])
-
   const [selectedCompany, setSelectedCompany] = useState('amazon')
   const [selectedRole, setSelectedRole] = useState('sde-intern')
 
-  const [loading, setLoading] = useState(false)
-  const [roadmap, setRoadmap] = useState(null)
-  const [error, setError] = useState('')
+  const { data: companiesRes } = useRoadmapCompanies()
+  const companies = companiesRes?.data ?? (Array.isArray(companiesRes) ? companiesRes : [])
 
-  const canFetch = useMemo(() => !!selectedCompany && !!selectedRole, [selectedCompany, selectedRole])
+  const { data: rolesRes } = useRoadmapRoles()
+  const roles = rolesRes?.data ?? (Array.isArray(rolesRes) ? rolesRes : [])
 
-  useEffect(() => {
-    const loadLists = async () => {
-      try {
-        const [companiesRes, rolesRes] = await Promise.all([
-          fetch('/api/roadmaps/companies', { headers: { Authorization: `Bearer ${token}` } }),
-          fetch('/api/roadmaps/roles', { headers: { Authorization: `Bearer ${token}` } }),
-        ])
-
-        const companiesJson = await companiesRes.json()
-        const rolesJson = await rolesRes.json()
-
-        setCompanies(Array.isArray(companiesJson) ? companiesJson : [])
-        setRoles(Array.isArray(rolesJson) ? rolesJson : [])
-      } catch (e) {
-        console.error(e)
-      }
-    }
-
-    loadLists()
-  }, [token])
-
-  useEffect(() => {
-    if (!canFetch) return
-
-    const fetchRoadmap = async () => {
-      setLoading(true)
-      setError('')
-      try {
-        const res = await fetch(`/api/roadmaps/${selectedCompany}/${selectedRole}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        })
-        const data = await res.json()
-        if (!res.ok) {
-          setRoadmap(null)
-          setError(data?.message || 'Failed to load roadmap')
-          return
-        }
-        setRoadmap(data)
-      } catch (e) {
-        console.error(e)
-        setRoadmap(null)
-        setError('Failed to load roadmap')
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    fetchRoadmap()
-  }, [canFetch, selectedCompany, selectedRole, token])
+  const { data: roadmapRes, isLoading: loading, error: fetchError } = useRoadmap(selectedCompany, selectedRole)
+  const roadmap = roadmapRes?.data ?? roadmapRes ?? null
+  const error = fetchError ? (fetchError.message || 'Failed to load roadmap') : ''
 
   return (
     <div className="roadmaps-page">
@@ -117,7 +67,7 @@ export default function Roadmaps() {
         </div>
       </div>
 
-      {loading && <div className="loading">Loading roadmap…</div>}
+      {loading && <Spinner />}
       {error && <div className="error">{error}</div>}
 
       {roadmap && (

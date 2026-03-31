@@ -17,6 +17,9 @@ import { recordJobQueued } from '../lib/jobStatusDal.js'
 import { ACTIVITY_EVENT_TYPES, JOB_TYPES } from '../lib/activityTypes.js'
 import { emitActivityEvent } from '../lib/activityDal.js'
 import { QUEUE_NAMES } from '../lib/queues.js'
+import { validate } from '../lib/validate.js'
+import { resumeVersionQuery, jobIdParam, matchEnqueueBody, matchRequestBody, userIdParam } from '../lib/schemas.js'
+import { apiSuccess, apiError, apiNotFound, apiForbidden, apiTooMany } from '../lib/apiResponse.js'
 
 const router = express.Router()
 
@@ -63,14 +66,14 @@ function parseJsonObject(value) {
 }
 
 // Module 3: list stored match results (never recompute blindly).
-router.get('/me/results', authMiddleware, (req, res) => {
+router.get('/me/results', authMiddleware, validate({ query: resumeVersionQuery }), (req, res) => {
   const db = getDb()
   const userId = req.user.id
   const tenantId = getTenantIdFromRequest(req)
-  const resumeVersion = String(req.query?.resumeVersion || '').trim()
+  const resumeVersion = req.query?.resumeVersion || ''
 
   const effectiveResumeVersion = resumeVersion || getLatestResumeVersion(db, userId)?.version_label
-  if (!effectiveResumeVersion) return res.json({ items: [] })
+  if (!effectiveResumeVersion) return apiSuccess(res, { resumeVersion: null, items: [] })
 
   const rows = db
     .prepare(
@@ -82,7 +85,7 @@ router.get('/me/results', authMiddleware, (req, res) => {
     )
     .all(userId, tenantId ? String(tenantId) : null, effectiveResumeVersion)
 
-  return res.json({
+  return apiSuccess(res, {
     resumeVersion: effectiveResumeVersion,
     items: rows.map((r) => ({
       jobId: r.job_id,
@@ -96,17 +99,15 @@ router.get('/me/results', authMiddleware, (req, res) => {
   })
 })
 
-router.get('/me/results/:jobId', authMiddleware, (req, res) => {
+router.get('/me/results/:jobId', authMiddleware, validate({ params: jobIdParam, query: resumeVersionQuery }), (req, res) => {
   const db = getDb()
   const userId = req.user.id
   const tenantId = getTenantIdFromRequest(req)
-  const jobId = String(req.params.jobId || '').trim()
-  const resumeVersion = String(req.query?.resumeVersion || '').trim()
-
-  if (!jobId) return res.status(400).json({ message: 'jobId is required' })
+  const jobId = req.params.jobId
+  const resumeVersion = req.query?.resumeVersion || ''
 
   const effectiveResumeVersion = resumeVersion || getLatestResumeVersion(db, userId)?.version_label
-  if (!effectiveResumeVersion) return res.status(404).json({ message: 'No resume version found' })
+  if (!effectiveResumeVersion) return apiNotFound(res, 'No resume version found')
 
   const r = db
     .prepare(
@@ -118,8 +119,8 @@ router.get('/me/results/:jobId', authMiddleware, (req, res) => {
     )
     .get(userId, tenantId ? String(tenantId) : null, effectiveResumeVersion, jobId)
 
-  if (!r) return res.status(404).json({ message: 'Match not found' })
-  return res.json({
+  if (!r) return apiNotFound(res, 'Match not found')
+  return apiSuccess(res, {
     resumeVersion: effectiveResumeVersion,
     jobId: r.job_id,
     algorithmVersion: r.algorithm_version,
@@ -132,31 +133,23 @@ router.get('/me/results/:jobId', authMiddleware, (req, res) => {
 })
 
 // Module 3: enqueue matching job and return immediately.
-router.post('/me/enqueue', authMiddleware, limitMatchingTrigger, async (req, res) => {
-  if (!isQueueingAvailable()) return res.status(503).json({ message: 'Matching queue is not available' })
-  if (!isPgConfigured()) return res.status(503).json({ message: 'Jobs database is not configured' })
+router.post('/me/enqueue', authMiddleware, limitMatchingTrigger, validate({ body: matchEnqueueBody }), async (req, res) => {
+  if (!isQueueingAvailable()) return apiError(res, { status: 503, message: 'Matching queue is not available' })
+  if (!isPgConfigured()) return apiError(res, { status: 503, message: 'Jobs database is not configured' })
 
   const db = getDb()
   const userId = req.user.id
   const tenantId = getTenantIdFromRequest(req)
-  const jobId = String(req.body?.jobId || '').trim()
-  const resumeVersion = String(req.body?.resumeVersion || '').trim()
-
-  if (!jobId) return res.status(400).json({ message: 'jobId is required' })
+  const jobId = req.body.jobId
+  const resumeVersion = req.body.resumeVersion || ''
 
   const effectiveResumeVersion = resumeVersion || getLatestResumeVersion(db, userId)?.version_label
-  if (!effectiveResumeVersion) return res.status(404).json({ message: 'No resume version found' })
+  if (!effectiveResumeVersion) return apiNotFound(res, 'No resume version found')
 
   // Plan-aware usage metering (durable): cap expensive match triggers.
   const usage = checkAndIncrementUsage(db, { tenantId, featureKey: 'matching_triggers_per_hour', incrementBy: 1, period: 'hour' })
   if (!usage.ok) {
-    return res.status(429).json({
-      message: usage.message,
-      code: usage.code,
-      limit: usage.limit ?? null,
-      used: usage.used ?? null,
-      period: usage.period ?? null,
-    })
+    return apiTooMany(res, { message: usage.message })
   }
 
   const rv = db
@@ -225,27 +218,21 @@ router.post('/me/enqueue', authMiddleware, limitMatchingTrigger, async (req, res
     })
 
     if (!enq.ok) {
-      return res.status(429).json({
-        message: enq.message,
-        code: enq.code,
-        limit: enq.limit ?? null,
-        used: enq.used ?? null,
-        retryAfterSec: enq.retryAfterSec ?? 60,
-      })
+      return apiTooMany(res, { message: enq.message, retryAfterSec: enq.retryAfterSec ?? 60 })
     }
 
     if (enq.warning) res.setHeader('X-StudentOS-Quota-Warn', enq.warning)
-    return res.status(202).json({ ok: true, enqueued: true, resumeVersion: effectiveResumeVersion })
+    return apiSuccess(res, { enqueued: true, resumeVersion: effectiveResumeVersion }, { status: 202 })
   } catch (err) {
     logger.warn({ err }, '[matching] enqueue failed')
-    return res.status(500).json({ message: 'Failed to enqueue match job' })
+    return apiError(res, { status: 500, message: 'Failed to enqueue match job' })
   }
 })
 
 // Module 4: Manual retry for latest failed matching job.
 router.post('/me/retry', authMiddleware, limitMatchingRetry, async (req, res) => {
-  if (!isQueueingAvailable()) return res.status(503).json({ message: 'Matching queue is not available' })
-  if (!isPgConfigured()) return res.status(503).json({ message: 'Jobs database is not configured' })
+  if (!isQueueingAvailable()) return apiError(res, { status: 503, message: 'Matching queue is not available' })
+  if (!isPgConfigured()) return apiError(res, { status: 503, message: 'Jobs database is not configured' })
 
   const userId = req.user.id
   const db = getDb()
@@ -260,18 +247,12 @@ router.post('/me/retry', authMiddleware, limitMatchingRetry, async (req, res) =>
     )
     .get(userId, JOB_TYPES.RESUME_MATCHING)
 
-  if (!failed) return res.status(404).json({ message: 'No failed matching job found' })
+  if (!failed) return apiNotFound(res, 'No failed matching job found')
 
   const tenantId = getTenantIdFromRequest(req)
   const usage = checkAndIncrementUsage(db, { tenantId, featureKey: 'matching_retries_per_hour', incrementBy: 1, period: 'hour' })
   if (!usage.ok) {
-    return res.status(429).json({
-      message: usage.message,
-      code: usage.code,
-      limit: usage.limit ?? null,
-      used: usage.used ?? null,
-      period: usage.period ?? null,
-    })
+    return apiTooMany(res, { message: usage.message })
   }
 
   const scopeKey = String(failed.scope_key)
@@ -289,7 +270,7 @@ router.post('/me/retry', authMiddleware, limitMatchingRetry, async (req, res) =>
     )
     .get(userId, JOB_TYPES.RESUME_MATCHING, scopeKey, cutoff)
   if (Number(c?.n || 0) >= maxPerDay) {
-    return res.status(429).json({ message: 'Retry limit reached for today. Please try again later.' })
+    return apiTooMany(res, { message: 'Retry limit reached for today. Please try again later.' })
   }
 
   let payload
@@ -363,17 +344,11 @@ router.post('/me/retry', authMiddleware, limitMatchingRetry, async (req, res) =>
   })
 
   if (!enq.ok) {
-    return res.status(429).json({
-      message: enq.message,
-      code: enq.code,
-      limit: enq.limit ?? null,
-      used: enq.used ?? null,
-      retryAfterSec: enq.retryAfterSec ?? 60,
-    })
+    return apiTooMany(res, { message: enq.message, retryAfterSec: enq.retryAfterSec ?? 60 })
   }
 
   if (enq.warning) res.setHeader('X-StudentOS-Quota-Warn', enq.warning)
-  return res.status(202).json({ ok: true, enqueued: true })
+  return apiSuccess(res, { enqueued: true }, { status: 202 })
 })
 
 // Common job roles with required skills
@@ -463,17 +438,17 @@ function calculateMatch(resumeSkills, jobSkills) {
 }
 
 // Match resume against job description
-router.post('/:userId/match', authMiddleware, (req, res) => {
+router.post('/:userId/match', authMiddleware, validate({ params: userIdParam, body: matchRequestBody }), (req, res) => {
   const { userId } = req.params
   const { jobDescription, roleId, resume } = req.body
 
   if (!jobDescription && !roleId) {
-    return res.status(400).json({ message: 'Job description or role ID required' })
+    return apiError(res, { status: 400, message: 'Job description or role ID required' })
   }
 
   const db = getDb()
   const tenantId = getTenantIdFromRequest(req)
-  if (!requireUserInTenant(db, { tenantId, userId })) return res.status(403).json({ message: 'Forbidden' })
+  if (!requireUserInTenant(db, { tenantId, userId })) return apiForbidden(res)
 
   // Get job requirements
   let jobRequirements = { requiredSkills: [], preferredSkills: [] }
@@ -550,7 +525,7 @@ router.post('/:userId/match', authMiddleware, (req, res) => {
     reason = 'Significant skill mismatch. Develop core skills before applying.'
   }
 
-  res.json({
+  return apiSuccess(res, {
     jobTitle,
     matchPercentage: overallMatch,
     requiredMatch,
@@ -572,7 +547,7 @@ router.get('/roles/list', authMiddleware, (req, res) => {
     skills: [...role.requiredSkills, ...role.preferredSkills],
   }))
 
-  res.json(roles)
+  return apiSuccess(res, roles)
 })
 
 export default router

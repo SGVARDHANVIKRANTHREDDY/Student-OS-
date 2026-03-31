@@ -134,7 +134,9 @@ router.put('/:userId/assignments/:id', authMiddleware, (req, res) => {
   }
 
   sql += ` WHERE id = ? AND tenant_id = ? AND user_id = ?`
-  params.push(Number(id), tenantId, userId)
+  const numId = Number(id)
+  if (!Number.isFinite(numId)) return res.status(400).json({ message: 'Invalid assignment id' })
+  params.push(numId, tenantId, userId)
 
   const info = db.prepare(sql).run(...params)
 
@@ -144,7 +146,7 @@ router.put('/:userId/assignments/:id', authMiddleware, (req, res) => {
 
   const row = db
     .prepare(`SELECT * FROM assignments WHERE id = ? AND tenant_id = ? AND user_id = ?`)
-    .get(Number(id), tenantId, userId)
+    .get(numId, tenantId, userId)
   return res.json(rowToAssignment(row))
 })
 
@@ -155,7 +157,9 @@ router.delete('/:userId/assignments/:id', authMiddleware, (req, res) => {
   const db = getDb()
   const tenantId = getTenantIdFromRequest(req)
   if (!requireUserInTenant(db, { tenantId, userId })) return res.status(403).json({ message: 'Forbidden' })
-  const info = db.prepare(`DELETE FROM assignments WHERE id = ? AND tenant_id = ? AND user_id = ?`).run(Number(id), tenantId, userId)
+  const numId = Number(id)
+  if (!Number.isFinite(numId)) return res.status(400).json({ message: 'Invalid assignment id' })
+  const info = db.prepare(`DELETE FROM assignments WHERE id = ? AND tenant_id = ? AND user_id = ?`).run(numId, tenantId, userId)
   if (info.changes === 0) return res.status(404).json({ message: 'Assignment not found' })
   return res.json({ message: 'Assignment deleted' })
 })
@@ -234,7 +238,9 @@ router.delete('/:userId/exams/:id', authMiddleware, (req, res) => {
   const db = getDb()
   const tenantId = getTenantIdFromRequest(req)
   if (!requireUserInTenant(db, { tenantId, userId })) return res.status(403).json({ message: 'Forbidden' })
-  const info = db.prepare(`DELETE FROM exams WHERE id = ? AND tenant_id = ? AND user_id = ?`).run(Number(id), tenantId, userId)
+  const numId = Number(id)
+  if (!Number.isFinite(numId)) return res.status(400).json({ message: 'Invalid exam id' })
+  const info = db.prepare(`DELETE FROM exams WHERE id = ? AND tenant_id = ? AND user_id = ?`).run(numId, tenantId, userId)
   if (info.changes === 0) return res.status(404).json({ message: 'Exam not found' })
   return res.json({ message: 'Exam deleted' })
 })

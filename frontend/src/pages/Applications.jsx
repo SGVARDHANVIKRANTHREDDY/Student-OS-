@@ -1,46 +1,28 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { apiFetch } from '../lib/api'
+import { useQuery } from '@tanstack/react-query'
+import { api } from '../lib/apiClient'
+import { queryKeys } from '../lib/queryClient'
 import './Applications.css'
 
 export default function Applications() {
   const navigate = useNavigate()
   const { token } = useAuth()
 
-  const [items, setItems] = useState([])
   const [page, setPage] = useState(1)
   const [pageSize] = useState(20)
-  const [total, setTotal] = useState(0)
-  const [hasNext, setHasNext] = useState(false)
 
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
+  const { data, isLoading: loading, error } = useQuery({
+    queryKey: [...queryKeys.applications(), page, pageSize],
+    queryFn: () => api.get(`/api/applications?page=${page}&pageSize=${pageSize}`, token),
+    enabled: !!token,
+    keepPreviousData: true,
+  })
 
-  useEffect(() => {
-    const load = async () => {
-      setLoading(true)
-      setError('')
-      try {
-        const res = await apiFetch(`/api/applications?page=${page}&pageSize=${pageSize}`, { token })
-        if (!res.ok) {
-          setItems([])
-          setError(res.data?.message || 'Failed to load applications')
-          return
-        }
-        setItems(res.data?.items || [])
-        setTotal(res.data?.total || 0)
-        setHasNext(!!res.data?.hasNext)
-      } catch {
-        setItems([])
-        setError('Failed to load applications')
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    load()
-  }, [page, pageSize, token])
+  const items = data?.data?.items ?? data?.items ?? []
+  const total = data?.data?.total ?? data?.total ?? 0
+  const hasNext = data?.data?.hasNext ?? data?.hasNext ?? false
 
   const statusLabel = (raw) => {
     const s = String(raw || '').trim().toUpperCase()
@@ -68,7 +50,7 @@ export default function Applications() {
 
   return (
     <div className="applications">
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center' }}>
+      <div className="page-header">
         <div>
           <h2>Applications</h2>
           <p className="subtitle">Track your applications across internships and jobs.</p>
@@ -77,7 +59,7 @@ export default function Applications() {
       </div>
 
       {loading && <div className="page-state">Loading applications…</div>}
-      {error && <div className="page-error">{error}</div>}
+      {error && <div className="page-error">{error.message || 'Failed to load applications'}</div>}
 
       {!loading && !error && items.length === 0 && (
         <div className="page-state">
@@ -97,15 +79,15 @@ export default function Applications() {
                 <span className="job-chip">{a.job?.experienceLevel}</span>
                 <span className="job-chip">Resume: {a.resumeVersion}</span>
               </div>
-              <div className="application-meta" style={{ marginTop: 8 }}>
+              <div className="application-meta">
                 <span className="job-chip">Applied: {new Date(a.appliedAt).toLocaleString()}</span>
                 <span className="job-chip">Updated: {new Date(a.updatedAt).toLocaleString()}</span>
               </div>
-              <div className="application-meta" style={{ marginTop: 8 }}>
+              <div className="application-meta">
                 <span className="job-chip">{statusExplain(a.status)}</span>
               </div>
             </div>
-            <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+            <div className="application-actions">
               <span className={`status ${statusClass(a.status)}`}>{statusLabel(a.status)}</span>
               <button className="jobs-btn" onClick={() => navigate(`/app/jobs/${a.jobId}`)}>View</button>
             </div>

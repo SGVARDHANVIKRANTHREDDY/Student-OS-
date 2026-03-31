@@ -28,7 +28,7 @@ if (!password) {
 const db = new Database('data/student-os.sqlite')
 
 const now = new Date().toISOString()
-const passwordHash = await bcrypt.hash(password, 10)
+const passwordHash = await bcrypt.hash(password, 12)
 
 const existing = db.prepare('SELECT id, email, role FROM users WHERE email = ?').get(email)
 

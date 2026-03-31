@@ -6,7 +6,7 @@ export default function PrivateRoute({ requireOnboarded = false, children }) {
   const location = useLocation()
 
   if (!ready) {
-    return <div style={{ padding: '20px' }}>Loading…</div>
+    return <div className="state-msg">Loading…</div>
   }
 
   if (!isAuthenticated) {

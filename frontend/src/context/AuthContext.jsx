@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react'
-import { apiFetch } from '../lib/api'
+import { apiFetch } from '../lib/apiClient'
 
 const AuthContext = createContext(null)
 
@@ -27,6 +27,16 @@ export function AuthProvider({ children }) {
     }
   })
   const [ready, setReady] = useState(false)
+
+  useEffect(() => {
+    const handleRefresh = (e) => {
+      if (e.detail?.token) {
+        setToken(e.detail.token)
+      }
+    }
+    window.addEventListener('auth:refreshed', handleRefresh)
+    return () => window.removeEventListener('auth:refreshed', handleRefresh)
+  }, [])
 
   useEffect(() => {
     const restore = async () => {

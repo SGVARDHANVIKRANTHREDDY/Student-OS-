@@ -1,53 +1,74 @@
+/* ─── Resume Preview ─── */
 .resume-preview {
-  background: white;
-  padding: 40px;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  font-family: 'Courier New', monospace;
+  background: var(--color-surface);
+  padding: var(--space-8);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-card);
+  font-family: 'Georgia', serif;
   line-height: 1.6;
   max-height: 800px;
   overflow-y: auto;
 }
 
 .resume-preview-empty {
-  background: white;
-  padding: 40px;
-  border-radius: 8px;
+  background: var(--color-surface);
+  padding: var(--space-8);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border);
   text-align: center;
-  color: #999;
-  font-size: 14px;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
 }
 
 .resume-header {
-  margin-bottom: 25px;
-  padding-bottom: 15px;
-  border-bottom: 2px solid #333;
+  margin-bottom: var(--space-5);
+  padding-bottom: var(--space-4);
+  border-bottom: 2px solid var(--color-text);
+}
+
+.preview-title {
+  margin: 0 0 var(--space-1) 0;
+  font-size: var(--text-xl);
+}
+
+.preview-subtitle {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+}
+
+.preview-item-desc {
+  margin: var(--space-1) 0 0 0;
+  color: var(--color-text-secondary);
+  font-size: var(--text-sm);
 }
 
 .preview-section {
-  margin-bottom: 20px;
+  margin-bottom: var(--space-5);
 }
 
 .preview-section h3 {
-  font-size: 12px;
-  font-weight: bold;
-  letter-spacing: 1px;
-  color: #000;
-  margin: 0 0 10px 0;
-  border-bottom: 1px solid #999;
-  padding-bottom: 5px;
+  font-size: var(--text-xs);
+  font-weight: var(--font-bold);
+  letter-spacing: 0.1em;
+  color: var(--color-text);
+  margin: 0 0 var(--space-3) 0;
+  border-bottom: 1px solid var(--color-text-muted);
+  padding-bottom: var(--space-1);
+  text-transform: uppercase;
 }
 
 .preview-item {
-  margin-bottom: 12px;
-  font-size: 13px;
+  margin-bottom: var(--space-3);
+  font-size: var(--text-sm);
 }
 
 .preview-item-header {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  margin-bottom: 3px;
+  margin-bottom: 2px;
 }
 
 .preview-item strong {
@@ -55,25 +76,25 @@
 }
 
 .preview-item-meta {
-  font-size: 12px;
-  color: #666;
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
 }
 
 .preview-item-company {
   font-style: italic;
-  color: #555;
-  font-size: 12px;
-  margin-bottom: 3px;
+  color: var(--color-text-secondary);
+  font-size: var(--text-xs);
+  margin-bottom: 2px;
 }
 
 .preview-item p {
   margin: 0;
-  color: #555;
-  font-size: 12px;
+  color: var(--color-text-secondary);
+  font-size: var(--text-xs);
 }
 
 .preview-skills {
-  font-size: 13px;
-  color: #333;
+  font-size: var(--text-sm);
+  color: var(--color-text);
   line-height: 1.8;
 }

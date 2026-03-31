@@ -19,6 +19,9 @@ import {
   parseCursorPagination as parseLearningCursorPagination,
   listLearningResourcesCursor,
 } from '../lib/learningResourcesDal.js'
+import { validate } from '../lib/validate.js'
+import { cursorPaginationQuery, idParam, courseBody, courseUpdateBody, courseAdminQuery } from '../lib/schemas.js'
+import { apiSuccess, apiCreated, apiError, apiNotFound, apiForbidden, apiUnauthorized, apiConflict, apiTooMany } from '../lib/apiResponse.js'
 
 const router = express.Router()
 
@@ -65,7 +68,7 @@ router.get('/resources', authMiddleware, async (req, res, next) => {
   const tenantId = getTenantIdFromRequest(req)
   const q = String(req.query?.q || '').trim()
   const paging = parseLearningCursorPagination(req)
-  if (paging.cursorError) return res.status(400).json({ message: paging.cursorError })
+  if (paging.cursorError) return apiError(res, { status: 400, message: paging.cursorError })
 
   try {
     const data = await listLearningResourcesCursor({
@@ -74,7 +77,7 @@ router.get('/resources', authMiddleware, async (req, res, next) => {
       limit: paging.limit,
       cursor: paging.cursor,
     })
-    return res.json({ ...data, mode: 'cursor' })
+    return apiSuccess(res, { ...data, mode: 'cursor' })
   } catch (err) {
     return next(err)
   }
@@ -117,14 +120,14 @@ router.get('/courses', authMiddleware, (req, res) => {
     }
   }
 
-  return res.json({
+  return apiSuccess(res, {
     items: rows.map((r) => rowToCourse(r, skillsByCourse.get(Number(r.id)) || [])),
   })
 })
 
 // Admin/operator: list courses by status
-router.get('/courses/admin', authMiddleware, (req, res) => {
-  if (!canReadCoursesAdmin(req)) return res.status(403).json({ message: 'Forbidden' })
+router.get('/courses/admin', authMiddleware, validate({ query: courseAdminQuery }), (req, res) => {
+  if (!canReadCoursesAdmin(req)) return apiForbidden(res)
   const db = getDb()
   const tenantId = getTenantIdFromRequest(req)
   const status = String(req.query?.status || '').trim().toUpperCase()
@@ -169,21 +172,15 @@ router.get('/courses/admin', authMiddleware, (req, res) => {
     }
   }
 
-  return res.json({ items: rows.map((r) => rowToCourse(r, skillsByCourse.get(Number(r.id)) || [])) })
+  return apiSuccess(res, { items: rows.map((r) => rowToCourse(r, skillsByCourse.get(Number(r.id)) || [])) })
 })
 
 // POST /api/learning/courses - operator add
-router.post('/courses', authMiddleware, (req, res) => {
-  if (!canWriteCourses(req)) return res.status(403).json({ message: 'Forbidden' })
+router.post('/courses', authMiddleware, validate({ body: courseBody }), (req, res) => {
+  if (!canWriteCourses(req)) return apiForbidden(res)
 
-  const name = String(req.body?.name || '').trim()
-  const description = String(req.body?.description || '').trim()
-  const imageUrl = String(req.body?.imageUrl || '').trim()
-  const externalUrl = String(req.body?.externalUrl || '').trim()
-  const skills = Array.isArray(req.body?.skills) ? req.body.skills.map((s) => String(s || '').trim()).filter(Boolean) : []
-
-  if (!name) return res.status(400).json({ message: 'name is required' })
-  if (!externalUrl) return res.status(400).json({ message: 'externalUrl is required' })
+  const { name, description, imageUrl, externalUrl, skills: rawSkills } = req.body
+  const skills = Array.isArray(rawSkills) ? rawSkills.map((s) => String(s || '').trim()).filter(Boolean) : []
 
   const db = getDb()
   const tenantId = getTenantIdFromRequest(req)
@@ -213,7 +210,7 @@ router.post('/courses', authMiddleware, (req, res) => {
     }
 
     db.prepare('COMMIT').run()
-    return res.status(201).json({ ok: true, id: courseId })
+    return apiCreated(res, { id: courseId })
   } catch (err) {
     db.prepare('ROLLBACK').run()
     throw err
@@ -221,10 +218,9 @@ router.post('/courses', authMiddleware, (req, res) => {
 })
 
 // PATCH /api/learning/courses/:id - operator update
-router.patch('/courses/:id', authMiddleware, (req, res) => {
-  if (!canWriteCourses(req)) return res.status(403).json({ message: 'Forbidden' })
-  const courseId = Number(req.params.id)
-  if (!Number.isFinite(courseId)) return res.status(400).json({ message: 'Invalid course id' })
+router.patch('/courses/:id', authMiddleware, validate({ params: idParam, body: courseUpdateBody }), (req, res) => {
+  if (!canWriteCourses(req)) return apiForbidden(res)
+  const courseId = req.params.id
 
   const db = getDb()
   const tenantId = getTenantIdFromRequest(req)
@@ -250,15 +246,11 @@ router.patch('/courses/:id', authMiddleware, (req, res) => {
     params.push(String(req.body.externalUrl || '').trim())
   }
   if (req.body?.status !== undefined) {
-    const st = String(req.body.status || '').trim().toUpperCase()
-    if (!['DRAFT', 'SUBMITTED', 'APPROVED', 'ARCHIVED'].includes(st)) {
-      return res.status(400).json({ message: 'Invalid status' })
-    }
     fields.push('status = ?')
-    params.push(st)
+    params.push(req.body.status)
   }
 
-  if (fields.length === 0 && req.body?.skills === undefined) return res.json({ ok: true })
+  if (fields.length === 0 && req.body?.skills === undefined) return apiSuccess(res, { ok: true })
 
   db.prepare('BEGIN').run()
   try {
@@ -284,7 +276,7 @@ router.patch('/courses/:id', authMiddleware, (req, res) => {
     }
 
     db.prepare('COMMIT').run()
-    return res.json({ ok: true })
+    return apiSuccess(res, { ok: true })
   } catch (err) {
     db.prepare('ROLLBACK').run()
     throw err
@@ -292,21 +284,20 @@ router.patch('/courses/:id', authMiddleware, (req, res) => {
 })
 
 // POST /api/learning/courses/:id/complete - student completion -> updates user_skills
-router.post('/courses/:id/complete', authMiddleware, (req, res) => {
-  const courseId = Number(req.params.id)
-  if (!Number.isFinite(courseId)) return res.status(400).json({ message: 'Invalid course id' })
+router.post('/courses/:id/complete', authMiddleware, validate({ params: idParam }), (req, res) => {
+  const courseId = req.params.id
 
   const db = getDb()
   const tenantId = getTenantIdFromRequest(req)
   const userId = req.user?.id
-  if (!userId) return res.status(401).json({ message: 'Authentication required' })
-  if (!requireUserInTenant(db, { tenantId, userId })) return res.status(403).json({ message: 'Forbidden' })
+  if (!userId) return apiUnauthorized(res)
+  if (!requireUserInTenant(db, { tenantId, userId })) return apiForbidden(res)
 
   const course = db
     .prepare('SELECT id, status FROM curated_courses WHERE id = ? AND tenant_id = ? LIMIT 1')
     .get(courseId, tenantId)
-  if (!course) return res.status(404).json({ message: 'Course not found' })
-  if (String(course.status) !== 'APPROVED') return res.status(409).json({ message: 'Course is not available' })
+  if (!course) return apiNotFound(res, 'Course not found')
+  if (String(course.status) !== 'APPROVED') return apiConflict(res, 'Course is not available')
 
   const skillRows = db
     .prepare('SELECT skill_name FROM curated_course_skills WHERE course_id = ? ORDER BY skill_name ASC')
@@ -331,13 +322,13 @@ router.post('/courses/:id/complete', authMiddleware, (req, res) => {
     }
   }
 
-  return res.json({ ok: true, completedAt: now })
+  return apiSuccess(res, { ok: true, completedAt: now })
 })
 
 // Module 4: Manual retry for latest failed learning plan generation job.
 router.post('/me/retry', authMiddleware, limitLearningRetry, async (req, res) => {
   if (!isQueueingAvailable()) {
-    return res.status(503).json({ message: 'Learning plan queue is not available' })
+    return apiError(res, { status: 503, message: 'Learning plan queue is not available' })
   }
 
   const userId = req.user.id
@@ -353,18 +344,12 @@ router.post('/me/retry', authMiddleware, limitLearningRetry, async (req, res) =>
     )
     .get(userId, JOB_TYPES.LEARNING_PLAN)
 
-  if (!failed) return res.status(404).json({ message: 'No failed learning plan job found' })
+  if (!failed) return apiNotFound(res, 'No failed learning plan job found')
 
   const tenantId = getTenantIdFromRequest(req)
   const usage = checkAndIncrementUsage(db, { tenantId, featureKey: 'learning_retries_per_hour', incrementBy: 1, period: 'hour' })
   if (!usage.ok) {
-    return res.status(429).json({
-      message: usage.message,
-      code: usage.code,
-      limit: usage.limit ?? null,
-      used: usage.used ?? null,
-      period: usage.period ?? null,
-    })
+    return apiTooMany(res, { message: usage.message })
   }
 
   const scopeKey = String(failed.scope_key)
@@ -382,7 +367,7 @@ router.post('/me/retry', authMiddleware, limitLearningRetry, async (req, res) =>
     )
     .get(userId, JOB_TYPES.LEARNING_PLAN, scopeKey, cutoff)
   if (Number(c?.n || 0) >= maxPerDay) {
-    return res.status(429).json({ message: 'Retry limit reached for today. Please try again later.' })
+    return apiTooMany(res, { message: 'Retry limit reached for today. Please try again later.' })
   }
 
   let payload
@@ -456,17 +441,11 @@ router.post('/me/retry', authMiddleware, limitLearningRetry, async (req, res) =>
   })
 
   if (!enq.ok) {
-    return res.status(429).json({
-      message: enq.message,
-      code: enq.code,
-      limit: enq.limit ?? null,
-      used: enq.used ?? null,
-      retryAfterSec: enq.retryAfterSec ?? 60,
-    })
+    return apiTooMany(res, { message: enq.message, retryAfterSec: enq.retryAfterSec ?? 60 })
   }
 
   if (enq.warning) res.setHeader('X-StudentOS-Quota-Warn', enq.warning)
-  return res.status(202).json({ ok: true, enqueued: true })
+  return apiSuccess(res, { enqueued: true }, { status: 202 })
 })
 
 function parseJson(value, fallback) {
@@ -1262,7 +1241,7 @@ router.post('/:userId/paths', authMiddleware, (req, res) => {
   const { missingSkills } = req.body
 
   if (!missingSkills || !Array.isArray(missingSkills) || missingSkills.length === 0) {
-    return res.status(400).json({ error: 'Missing skills array required' })
+    return apiError(res, { status: 400, message: 'Missing skills array required' })
   }
 
   // Build ordered learning path
@@ -1301,7 +1280,7 @@ router.post('/:userId/paths', authMiddleware, (req, res) => {
     return difficultyOrder[a.difficulty] - difficultyOrder[b.difficulty]
   })
 
-  res.json({
+  return apiSuccess(res, {
     totalSkills: missingSkills.length,
     totalWeeks: sortedPaths.reduce((sum, p) => sum + p.totalWeeks, 0),
     learningPath: sortedPaths,
@@ -1343,7 +1322,7 @@ router.get('/plans/me', authMiddleware, (req, res) => {
     )
     .all(...params)
 
-  return res.json({
+  return apiSuccess(res, {
     items: rows.map((r) => ({
       id: r.id,
       jobId: r.job_id,
@@ -1361,7 +1340,7 @@ router.get('/plans/me/:planId', authMiddleware, (req, res) => {
   const userId = req.user.id
   const tenantId = req.auth?.tenantId || null
   const planId = Number(req.params.planId)
-  if (!Number.isFinite(planId)) return res.status(400).json({ message: 'Invalid planId' })
+  if (!Number.isFinite(planId)) return apiError(res, { status: 400, message: 'Invalid planId' })
 
   const plan = db
     .prepare(
@@ -1372,7 +1351,7 @@ router.get('/plans/me/:planId', authMiddleware, (req, res) => {
     )
     .get(planId, userId, tenantId ? String(tenantId) : null)
 
-  if (!plan) return res.status(404).json({ message: 'Plan not found' })
+  if (!plan) return apiNotFound(res, 'Plan not found')
 
   const items = db
     .prepare(
@@ -1383,7 +1362,7 @@ router.get('/plans/me/:planId', authMiddleware, (req, res) => {
     )
     .all(planId)
 
-  return res.json({
+  return apiSuccess(res, {
     plan: {
       id: plan.id,
       jobId: plan.job_id,
@@ -1414,16 +1393,16 @@ router.patch('/plans/me/:planId/items/:itemKey', authMiddleware, (req, res) => {
   const itemKey = String(req.params.itemKey || '').trim()
   const status = String(req.body?.status || '').trim().toUpperCase()
 
-  if (!Number.isFinite(planId)) return res.status(400).json({ message: 'Invalid planId' })
-  if (!itemKey) return res.status(400).json({ message: 'itemKey is required' })
+  if (!Number.isFinite(planId)) return apiError(res, { status: 400, message: 'Invalid planId' })
+  if (!itemKey) return apiError(res, { status: 400, message: 'itemKey is required' })
   if (!['NOT_STARTED', 'IN_PROGRESS', 'COMPLETED'].includes(status)) {
-    return res.status(400).json({ message: 'status must be NOT_STARTED, IN_PROGRESS, or COMPLETED' })
+    return apiError(res, { status: 400, message: 'status must be NOT_STARTED, IN_PROGRESS, or COMPLETED' })
   }
 
   const plan = db
     .prepare('SELECT id FROM learning_plans WHERE id = ? AND user_id = ? AND tenant_id IS ?')
     .get(planId, userId, tenantId ? String(tenantId) : null)
-  if (!plan) return res.status(404).json({ message: 'Plan not found' })
+  if (!plan) return apiNotFound(res, 'Plan not found')
 
   const now = new Date().toISOString()
   const startedAt = status === 'IN_PROGRESS' ? now : null
@@ -1440,8 +1419,8 @@ router.patch('/plans/me/:planId/items/:itemKey', authMiddleware, (req, res) => {
     )
     .run(status, startedAt, completedAt, now, planId, itemKey)
 
-  if (result.changes === 0) return res.status(404).json({ message: 'Item not found' })
-  return res.json({ ok: true, status, updatedAt: now })
+  if (result.changes === 0) return apiNotFound(res, 'Item not found')
+  return apiSuccess(res, { status, updatedAt: now })
 })
 
 export default router

@@ -1,32 +1,19 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useAuth } from '../context/AuthContext'
-import { apiFetch } from '../lib/api'
+import { useAdminUsers } from '../hooks/useApi'
+import { useToast } from '../components/Toast'
+import Spinner from '../components/Spinner'
+import EmptyState from '../components/EmptyState'
+import './Admin.css'
 
 export default function AdminUsers() {
   const { token } = useAuth()
-  const [items, setItems] = useState([])
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
+  const toast = useToast()
   const [exporting, setExporting] = useState(false)
 
-  useEffect(() => {
-    const load = async () => {
-      if (!token) return
-      setLoading(true)
-      setError('')
-      const res = await apiFetch('/api/admin/users?limit=200&offset=0', { token })
-      if (!res.ok) {
-        setItems([])
-        setError(res.data?.message || 'Failed to load users')
-        setLoading(false)
-        return
-      }
-      setItems(Array.isArray(res.data?.items) ? res.data.items : [])
-      setLoading(false)
-    }
-
-    load()
-  }, [token])
+  const { data: res, isLoading: loading, error: fetchError } = useAdminUsers({ limit: '200', offset: '0' })
+  const items = res?.data?.items ?? res?.items ?? []
+  const error = fetchError ? (fetchError.message || 'Failed to load users') : ''
 
   const exportCsv = async () => {
     if (!token) return
@@ -50,55 +37,47 @@ export default function AdminUsers() {
       a.remove()
       URL.revokeObjectURL(url)
     } catch (e) {
-      setError(String(e?.message || 'Export failed'))
+      toast.error(String(e?.message || 'Export failed'))
     } finally {
       setExporting(false)
     }
   }
 
   return (
-    <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center' }}>
+    <div className="admin-page">
+      <div className="admin-header">
         <div>
-          <h2 style={{ margin: 0, color: '#111827' }}>Admin • Users</h2>
-          <p style={{ marginTop: 6, color: '#6b7280', fontSize: 13 }}>Tenant-scoped user list.</p>
+          <h2>Admin &bull; Users</h2>
+          <p className="subtitle">Tenant-scoped user list.</p>
         </div>
         <button
           onClick={exportCsv}
           disabled={exporting}
-          style={{
-            padding: '10px 12px',
-            borderRadius: 10,
-            border: '1px solid #111827',
-            background: '#111827',
-            color: '#fff',
-            cursor: exporting ? 'not-allowed' : 'pointer',
-            opacity: exporting ? 0.7 : 1,
-          }}
+          className="admin-btn-primary"
         >
           {exporting ? 'Exporting…' : 'Export CSV'}
         </button>
       </div>
 
-      {loading && <div style={{ marginTop: 16, color: '#6b7280', fontSize: 13 }}>Loading…</div>}
-      {error && <div style={{ marginTop: 16, color: '#b91c1c', fontSize: 13 }}>{error}</div>}
+      {loading && <Spinner />}
+      {error && <div className="state-msg error">{error}</div>}
 
       {!loading && !error && items.length === 0 && (
-        <div style={{ marginTop: 16, color: '#6b7280', fontSize: 13 }}>No users found.</div>
+        <EmptyState title="No users" message="No users found." />
       )}
 
       {!loading && !error && items.length > 0 && (
-        <div style={{ marginTop: 16, border: '1px solid #e5e7eb', borderRadius: 12, overflow: 'hidden', background: '#fff' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1.2fr 1fr', gap: 10, padding: 12, background: '#f9fafb', color: '#6b7280', fontSize: 12, fontWeight: 700 }}>
+        <div className="admin-table">
+          <div className="admin-table-head">
             <div>Email</div>
             <div>Name</div>
             <div>Roles</div>
           </div>
           {items.map((u) => (
-            <div key={u.id} style={{ display: 'grid', gridTemplateColumns: '1.2fr 1.2fr 1fr', gap: 10, padding: 12, borderTop: '1px solid #e5e7eb' }}>
-              <div style={{ color: '#111827', fontSize: 13 }}>{u.email}</div>
-              <div style={{ color: '#111827', fontSize: 13 }}>{u.name}</div>
-              <div style={{ color: '#6b7280', fontSize: 13 }}>{(u.roles || []).join(', ') || '—'}</div>
+            <div key={u.id} className="admin-table-row">
+              <div className="cell">{u.email}</div>
+              <div className="cell">{u.name}</div>
+              <div className="cell-muted">{(u.roles || []).join(', ') || '—'}</div>
             </div>
           ))}
         </div>

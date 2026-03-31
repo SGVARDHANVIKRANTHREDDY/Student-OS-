@@ -1,39 +1,35 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { apiFetch } from '../lib/api'
+import { useProfile, useUpdateProfile } from '../hooks/useApi'
 import './Onboarding.css'
 
 export default function Onboarding() {
   const navigate = useNavigate()
-  const { token, updateProfile } = useAuth()
+  const { updateProfile: authUpdateProfile } = useAuth()
 
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
+  const { data: profileRes } = useProfile()
+  const saveProfile = useUpdateProfile()
 
   const [college, setCollege] = useState('')
   const [branch, setBranch] = useState('')
   const [graduationYear, setGraduationYear] = useState('')
   const [careerGoal, setCareerGoal] = useState('')
   const [step, setStep] = useState(1)
+  const [error, setError] = useState('')
 
   useEffect(() => {
-    const load = async () => {
-      if (!token) return
-      const res = await apiFetch('/api/profile/me', { token })
-      if (res.ok && res.data?.profile) {
-        setCollege(res.data.profile.college || '')
-        setBranch(res.data.profile.branch || '')
-        setGraduationYear(res.data.profile.graduationYear || '')
-        setCareerGoal(res.data.profile.careerGoal || '')
-        if (res.data.profile.onboarded) navigate('/app')
-      }
+    const profile = profileRes?.data?.profile ?? profileRes?.profile
+    if (profile) {
+      setCollege(profile.college || '')
+      setBranch(profile.branch || '')
+      setGraduationYear(profile.graduationYear || '')
+      setCareerGoal(profile.careerGoal || '')
+      if (profile.onboarded) navigate('/app')
     }
+  }, [profileRes, navigate])
 
-    load()
-  }, [navigate, token])
-
-  const handleSubmit = async (e) => {
+  const handleSubmit = (e) => {
     e.preventDefault()
     setError('')
 
@@ -42,23 +38,17 @@ export default function Onboarding() {
       return
     }
 
-    setLoading(true)
-
-    const res = await apiFetch('/api/profile/me', {
-      token,
-      method: 'POST',
-      body: { college, branch, graduationYear, careerGoal, onboarded: true },
-    })
-
-    setLoading(false)
-
-    if (!res.ok) {
-      setError(res.data?.message || 'Failed to save onboarding')
-      return
-    }
-
-    if (res.data?.profile) updateProfile(res.data.profile)
-    navigate('/app')
+    saveProfile.mutate(
+      { college, branch, graduationYear, careerGoal, onboarded: true },
+      {
+        onSuccess: (data) => {
+          const profile = data?.data?.profile ?? data?.profile
+          if (profile) authUpdateProfile(profile)
+          navigate('/app')
+        },
+        onError: (err) => setError(err.message || 'Failed to save onboarding'),
+      },
+    )
   }
 
   return (
@@ -98,7 +88,7 @@ export default function Onboarding() {
             </div>
           ) : (
             <div className="grid">
-              <div style={{ gridColumn: '1 / -1' }}>
+              <div className="full-span">
                 <label>Career goal</label>
                 <input
                   value={careerGoal}
@@ -126,7 +116,7 @@ export default function Onboarding() {
                 type="button"
                 className="btn-secondary"
                 onClick={() => setStep(1)}
-                disabled={loading}
+                disabled={saveProfile.isPending}
               >
                 Back
               </button>
@@ -134,8 +124,8 @@ export default function Onboarding() {
               <div />
             )}
 
-            <button className="btn" type="submit" disabled={loading}>
-              {loading ? 'Saving…' : step === 1 ? 'Continue' : 'Finish setup'}
+            <button className="btn" type="submit" disabled={saveProfile.isPending}>
+              {saveProfile.isPending ? 'Saving…' : step === 1 ? 'Continue' : 'Finish setup'}
             </button>
           </div>
         </form>

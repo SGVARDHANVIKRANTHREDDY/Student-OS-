@@ -1,5 +1,7 @@
 import express from 'express'
 import cors from 'cors'
+import helmet from 'helmet'
+import hpp from 'hpp'
 import dotenv from 'dotenv'
 import cookieParser from 'cookie-parser'
 import rateLimit from 'express-rate-limit'
@@ -26,16 +28,24 @@ import { closePgPools, getReadPool, getWritePool, isPgConfigured } from './lib/p
 import { runPgMigrations } from './lib/pgMigrate.js'
 import { closeQueues } from './lib/queues.js'
 import { closeRedisConnection, getRedisConnection, isRedisConfigured } from './lib/redis.js'
+import { correlationId } from './lib/correlationId.js'
+import { requestTiming } from './lib/requestTiming.js'
+import { validateEnv } from './lib/envValidation.js'
+import { getDependencyHealth, getMetricsSnapshot, incrementCounter } from './lib/metrics.js'
 
 dotenv.config()
+validateEnv()
 
 if (!process.env.JWT_SECRET) {
   if (process.env.NODE_ENV && process.env.NODE_ENV.toLowerCase() === 'production') {
     throw new Error('Missing JWT_SECRET. Set JWT_SECRET in the environment.')
   }
 
-  process.env.JWT_SECRET = 'dev-secret-change-me'
-  console.warn('[auth] JWT_SECRET not set. Using insecure dev default; set JWT_SECRET for production.')
+  // Generate a random ephemeral secret for development.  Tokens will not survive
+  // server restarts, but the secret is never a guessable constant.
+  const { randomBytes } = await import('node:crypto')
+  process.env.JWT_SECRET = randomBytes(48).toString('base64url')
+  console.warn('[auth] JWT_SECRET not set. Generated a random ephemeral secret for dev; tokens will expire on restart.')
 }
 
 const app = express()
@@ -84,16 +94,16 @@ if (process.env.TRUST_PROXY) {
   if (!Number.isNaN(trustProxy)) app.set('trust proxy', trustProxy)
 }
 
-app.disable('x-powered-by')
-
+// ── Core middleware pipeline (order matters) ────────────────────
+app.use(correlationId())
+app.use(requestTiming())
 app.use(httpLogger)
 
-app.use((req, res, next) => {
-  res.setHeader('X-Content-Type-Options', 'nosniff')
-  res.setHeader('X-Frame-Options', 'DENY')
-  res.setHeader('Referrer-Policy', 'no-referrer')
-  next()
-})
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginEmbedderPolicy: false,
+}))
+app.use(hpp())
 
 const allowedOrigins = process.env.CORS_ORIGIN
   ? process.env.CORS_ORIGIN.split(',').map((s) => s.trim()).filter(Boolean)
@@ -114,6 +124,14 @@ if (allowedOrigins && allowedOrigins.length > 0) {
 app.use(express.json({ limit: jsonBodyLimit }))
 app.use(express.urlencoded({ extended: false, limit: jsonBodyLimit }))
 app.use(cookieParser())
+
+// Request metrics collection
+app.use((req, res, next) => {
+  res.on('finish', () => {
+    incrementCounter('http_requests_total', { method: req.method, status: res.statusCode })
+  })
+  next()
+})
 
 // Baseline API-level rate limiting. (Stricter limits are applied on auth endpoints.)
 app.use(
@@ -144,36 +162,31 @@ app.use('/api/activity', activityRoutes)
 app.use('/api/notifications', notificationsRoutes)
 app.use('/api/account', accountRoutes)
 
+// ── Observability Endpoints ──────────────────────────────────────
+
 app.get('/api/health', (req, res) => {
   return res.json({
-    status: 'ok',
-    uptimeSec: Math.round(process.uptime()),
-    timestamp: new Date().toISOString(),
+    ok: true,
+    data: {
+      status: 'ok',
+      version: process.env.APP_VERSION || '1.0.0',
+      uptimeSec: Math.round(process.uptime()),
+      timestamp: new Date().toISOString(),
+    },
   })
 })
 
-// Readiness: returns 200 only when dependencies are reachable.
 app.get('/api/ready', async (req, res) => {
-  try {
-    const db = getDb()
-    db.prepare('SELECT 1').get()
+  const { healthy, checks } = await getDependencyHealth()
+  const status = healthy ? 200 : 503
+  return res.status(status).json({
+    ok: healthy,
+    data: { status: healthy ? 'ready' : 'not_ready', checks, timestamp: new Date().toISOString() },
+  })
+})
 
-    if (isRedisConfigured()) {
-      const redis = getRedisConnection()
-      // ioredis supports PING; ensure the socket is healthy.
-      await redis.ping()
-    }
-
-    if (isPgConfigured()) {
-      const pool = getReadPool()
-      await pool.query('SELECT 1')
-    }
-
-    return res.json({ status: 'ready', timestamp: new Date().toISOString() })
-  } catch (err) {
-    logger.error({ err }, '[ready] dependency check failed')
-    return res.status(503).json({ status: 'not_ready', message: 'Dependencies not ready' })
-  }
+app.get('/api/metrics', (req, res) => {
+  return res.json({ ok: true, data: getMetricsSnapshot() })
 })
 
 // Protected route example
@@ -190,19 +203,32 @@ const effectiveHost = process.env.HOST
     : '127.0.0.1'
 
 app.use((err, req, res, next) => {
-  logger.error({ err }, '[error]')
   if (res.headersSent) return next(err)
 
+  // Known domain-level errors (ServiceError) — safe to surface.
+  if (err?.name === 'ServiceError' && err?.httpStatus) {
+    logger.warn({ err, code: err.code }, '[service-error]')
+    return res.status(err.httpStatus).json(err.toResponseBody())
+  }
+
+  // JSON parse errors (malformed body).
+  if (err?.type === 'entity.parse.failed') {
+    return res.status(400).json({ ok: false, error: { code: 'PARSE_ERROR', message: 'Malformed JSON in request body' } })
+  }
+
   if (err?.type === 'entity.too.large') {
-    return res.status(413).json({ message: 'Request body too large' })
+    return res.status(413).json({ ok: false, error: { code: 'PAYLOAD_TOO_LARGE', message: 'Request body too large' } })
   }
 
   // Postgres statement timeout (query cancelled)
   if (err?.code === '57014' || String(err?.message || '').toLowerCase().includes('statement timeout')) {
-    return res.status(503).json({ message: 'Query timed out. Please retry.' })
+    logger.warn({ err }, '[pg-timeout]')
+    return res.status(503).json({ ok: false, error: { code: 'TIMEOUT', message: 'Query timed out. Please retry.' } })
   }
 
-  return res.status(500).json({ message: 'Internal server error' })
+  // Unexpected errors — log at error level, return generic message.
+  logger.error({ err, method: req.method, url: req.originalUrl }, '[unhandled-error]')
+  return res.status(500).json({ ok: false, error: { code: 'INTERNAL_ERROR', message: 'Internal server error' } })
 })
 
 process.on('unhandledRejection', (reason) => {

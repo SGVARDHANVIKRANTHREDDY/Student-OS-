@@ -1,0 +1,169 @@
+╔════════════════════════════════════════════════════════════════════════════╗
+║                  STUDENT OS - LAUNCHER QUICK CARD                          ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+┌────────────────────────────────────────────────────────────────────────────┐
+│  🚀 HOW TO START YOUR STUDENT OS SYSTEM - PICK ONE METHOD                 │
+└────────────────────────────────────────────────────────────────────────────┘
+
+OPTION 1️⃣  - WINDOWS (EASIEST - Just double-click)
+  Location: e:\student-os\RUNSTUDENTOS.bat
+  Action:   Double-click the file
+  Result:   Everything starts automatically! ✨
+
+OPTION 2️⃣  - COMMAND LINE
+  Command:  python RUNSTUDENTOS.py
+  Location: Run from e:\student-os\ folder
+  Result:   Everything starts automatically! ✨
+
+OPTION 3️⃣  - POWERSHELL
+  Command:  .\RUNSTUDENTOS.ps1
+  Location: Run from e:\student-os\ folder
+  Result:   Everything starts automatically! ✨
+
+┌────────────────────────────────────────────────────────────────────────────┐
+│  🔐 DEFAULT ADMIN LOGIN CREDENTIALS                                       │
+└────────────────────────────────────────────────────────────────────────────┘
+
+  Email:    admin@123
+  Password: Admin123@45
+  Username: Admin
+
+┌────────────────────────────────────────────────────────────────────────────┐
+│  📋 WHAT HAPPENS WHEN YOU RUN IT                                          │
+└────────────────────────────────────────────────────────────────────────────┘
+
+  ✅ Starts Backend Server       (Port 5000)
+  ✅ Starts Frontend Server      (Port 3000)
+  ✅ Creates Admin User          (auto@123)
+  ✅ Verifies Services Working   (health checks)
+  ✅ Opens Browser Automatically (http://localhost:3000)
+  ✅ Shows Credentials           (in terminal)
+  ✅ Keeps Running               (monitors services)
+  ✅ Auto-Restarts if Needed     (crash recovery)
+
+  ⏱️  Total Time: ~22 seconds from start to ready
+
+┌────────────────────────────────────────────────────────────────────────────┐
+│  🛑 HOW TO STOP THE SYSTEM                                                │
+└────────────────────────────────────────────────────────────────────────────┘
+
+  Press: Ctrl + C
+  (in the terminal where you ran the launcher)
+
+┌────────────────────────────────────────────────────────────────────────────┐
+│  📁 LAUNCHER FILES CREATED                                                │
+└────────────────────────────────────────────────────────────────────────────┘
+
+  SCRIPTS:
+    • RUNSTUDENTOS.py    - Main launcher (Python)
+    • RUNSTUDENTOS.bat   - Windows wrapper
+    • RUNSTUDENTOS.ps1   - PowerShell wrapper
+
+  DOCS:
+    • LAUNCHER_GUIDE.md              - Complete guide
+    • LAUNCHER_SYSTEM_SUMMARY.txt    - Setup summary
+    • QUICKSTART.md                  - Quick reference
+    • README.md                      - Updated docs
+
+┌────────────────────────────────────────────────────────────────────────────┐
+│  ⚙️  FIRST TIME SETUP (One-time only)                                     │
+└────────────────────────────────────────────────────────────────────────────┘
+
+  cd backend && npm install
+  cd ../frontend && npm install
+  cd ..
+
+  (Then you can run the launcher as many times as needed)
+
+┌────────────────────────────────────────────────────────────────────────────┐
+│  🎯 TYPICAL USAGE FLOW                                                    │
+└────────────────────────────────────────────────────────────────────────────┘
+
+  1. Navigate to project folder: e:\student-os\
+  
+  2. Run launcher (choose one):
+     • Double-click RUNSTUDENTOS.bat, OR
+     • python RUNSTUDENTOS.py, OR
+     • .\RUNSTUDENTOS.ps1
+  
+  3. Wait ~22 seconds for system to start
+  
+  4. Browser opens automatically to http://localhost:3000
+  
+  5. Terminal shows admin credentials:
+     Email: admin@123
+     Password: Admin123@45
+  
+  6. Click "Login" and use those credentials
+     (Or click "Sign up" to create new account)
+  
+  7. Use Student OS! 🎉
+  
+  8. When done, press Ctrl+C in terminal to stop
+
+┌────────────────────────────────────────────────────────────────────────────┐
+│  💡 TIPS                                                                   │
+└────────────────────────────────────────────────────────────────────────────┘
+
+  • Keep terminal open while using the app
+  • Services will auto-restart if they crash
+  • Press Ctrl+C anytime to cleanly stop everything
+  • Credentials are displayed in terminal
+  • Browser opens automatically (you don't need to open it)
+  • Check terminal output for status messages
+
+┌────────────────────────────────────────────────────────────────────────────┐
+│  ❓ TROUBLESHOOTING                                                       │
+└────────────────────────────────────────────────────────────────────────────┘
+
+  "Python not found"
+    → Install Python 3.8+ from python.org
+    → Add Python to PATH during installation
+
+  "Port already in use"
+    → Close other applications using ports 5000 or 3000
+    → Or: taskkill /F /IM node.exe (Windows)
+
+  "npm not found"
+    → Install Node.js from nodejs.org
+    → npm comes bundled with Node.js
+
+  "Services won't start"
+    → Check if npm install ran in backend/ and frontend/
+    → Try running npm install again
+
+  Browser doesn't open
+    → System is still running (check terminal)
+    → Manually go to http://localhost:3000
+
+  More help?
+    → See LAUNCHER_GUIDE.md for complete troubleshooting
+    → See QUICKSTART.md for quick reference
+
+┌────────────────────────────────────────────────────────────────────────────┐
+│  📊 SYSTEM ENDPOINTS                                                      │
+└────────────────────────────────────────────────────────────────────────────┘
+
+  Application:    http://localhost:3000
+  Backend API:    http://127.0.0.1:5000/api
+  Health Check:   http://127.0.0.1:5000/api/health
+
+┌────────────────────────────────────────────────────────────────────────────┐
+│  📚 DOCUMENTATION                                                          │
+└────────────────────────────────────────────────────────────────────────────┘
+
+  LAUNCHER_GUIDE.md          – Complete launcher documentation
+  QUICKSTART.md              – Quick start guide  
+  README.md                  – Project overview
+  ARCHITECTURE_AND_PRODUCT.md – System architecture
+
+┌────────────────────────────────────────────────────────────────────────────┐
+│  ✨ THAT'S IT!                                                             │
+└────────────────────────────────────────────────────────────────────────────┘
+
+  You're all set! Pick your launcher method and start Student OS! 🚀
+
+╔════════════════════════════════════════════════════════════════════════════╗
+║                 Created: March 10, 2026 | Status: ✅ READY               ║
+╚════════════════════════════════════════════════════════════════════════════╝

@@ -13,6 +13,8 @@ CREATE TABLE IF NOT EXISTS users (
   password_hash TEXT,
   provider TEXT NOT NULL DEFAULT 'local',
   google_sub TEXT UNIQUE,
+  role TEXT NOT NULL DEFAULT 'user',
+  status TEXT NOT NULL DEFAULT 'ACTIVE',
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );

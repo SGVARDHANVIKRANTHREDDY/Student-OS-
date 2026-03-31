@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { apiFetch } from '../lib/api'
+import { api } from '../lib/apiClient'
 import GoogleSignInButton from '../components/GoogleSignInButton'
 import { canAny, isOperator } from '../lib/authz'
 import './Login.css'
@@ -12,7 +12,18 @@ export default function Login() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
-  const { loginWithAuth, login } = useAuth()
+  const { loginWithAuth, isAuthenticated, profile } = useAuth()
+
+  // Redirect already-authenticated users
+  useEffect(() => {
+    if (isAuthenticated) {
+      if (profile?.onboarded) {
+        navigate('/app', { replace: true })
+      } else {
+        navigate('/onboarding', { replace: true })
+      }
+    }
+  }, [isAuthenticated, profile, navigate])
 
   const decideRedirect = (auth, profile) => {
     if (isOperator(auth)) {
@@ -30,25 +41,11 @@ export default function Login() {
     setLoading(true)
 
     try {
-      const res = await apiFetch('/api/auth/login', {
-        method: 'POST',
-        body: { email, password },
-      })
-
-      if (!res.ok) {
-        setError(res.data?.message || 'Sign-in failed')
-        return
-      }
-
-      if (res.data?.auth !== undefined) {
-        loginWithAuth({ token: res.data.token, user: res.data.user, profile: res.data.profile, auth: res.data.auth })
-        navigate(decideRedirect(res.data.auth, res.data.profile))
-      } else {
-        login({ token: res.data.token, user: res.data.user, profile: res.data.profile })
-        navigate(res.data?.profile?.onboarded ? '/app' : '/onboarding')
-      }
+      const data = await api.post('/api/auth/login', { email, password })
+      loginWithAuth({ token: data.token, user: data.user, profile: data.profile, auth: data.auth })
+      navigate(decideRedirect(data.auth, data.profile))
     } catch (err) {
-      setError('Network error. Please try again.')
+      setError(err?.message || 'Sign-in failed')
     } finally {
       setLoading(false)
     }
@@ -58,25 +55,11 @@ export default function Login() {
     setError('')
     setLoading(true)
     try {
-      const res = await apiFetch('/api/auth/google', {
-        method: 'POST',
-        body: { credential },
-      })
-
-      if (!res.ok) {
-        setError(res.data?.message || 'Google sign-in failed')
-        return
-      }
-
-      if (res.data?.auth !== undefined) {
-        loginWithAuth({ token: res.data.token, user: res.data.user, profile: res.data.profile, auth: res.data.auth })
-        navigate(decideRedirect(res.data.auth, res.data.profile))
-      } else {
-        login({ token: res.data.token, user: res.data.user, profile: res.data.profile })
-        navigate(res.data?.profile?.onboarded ? '/app' : '/onboarding')
-      }
-    } catch {
-      setError('Network error. Please try again.')
+      const data = await api.post('/api/auth/google', { credential })
+      loginWithAuth({ token: data.token, user: data.user, profile: data.profile, auth: data.auth })
+      navigate(decideRedirect(data.auth, data.profile))
+    } catch (err) {
+      setError(err?.message || 'Google sign-in failed')
     } finally {
       setLoading(false)
     }

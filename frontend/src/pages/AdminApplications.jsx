@@ -1,6 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
-import { useAuth } from '../context/AuthContext'
-import { apiFetch } from '../lib/api'
+import { useMemo, useState } from 'react'
+import { useAdminApplications, useUpdateApplicationStatus } from '../hooks/useApi'
+import { useToast } from '../components/Toast'
+import Spinner from '../components/Spinner'
+import EmptyState from '../components/EmptyState'
+import './Admin.css'
 
 function normalizeStatus(value) {
   const v = String(value || '').trim().toUpperCase()
@@ -8,16 +11,23 @@ function normalizeStatus(value) {
 }
 
 export default function AdminApplications() {
-  const { token } = useAuth()
-
-  const [items, setItems] = useState([])
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
+  const toast = useToast()
 
   const [page, setPage] = useState(1)
   const [pageSize] = useState(50)
   const [status, setStatus] = useState('')
-  const [updatingId, setUpdatingId] = useState(null)
+
+  const filters = useMemo(() => {
+    const f = { page: String(page), pageSize: String(pageSize) }
+    if (status) f.status = status
+    return f
+  }, [page, pageSize, status])
+
+  const { data: res, isLoading: loading, error: fetchError } = useAdminApplications(filters)
+  const items = res?.data?.items ?? res?.items ?? []
+  const error = fetchError ? (fetchError.message || 'Failed to load applications') : ''
+
+  const updateStatus = useUpdateApplicationStatus()
 
   const counts = useMemo(() => {
     const map = new Map()
@@ -28,73 +38,37 @@ export default function AdminApplications() {
     return map
   }, [items])
 
-  const query = useMemo(() => {
-    const params = new URLSearchParams()
-    params.set('page', String(page))
-    params.set('pageSize', String(pageSize))
-    if (status) params.set('status', status)
-    return params.toString()
-  }, [page, pageSize, status])
-
-  useEffect(() => {
-    const load = async () => {
-      if (!token) return
-      setLoading(true)
-      setError('')
-      const res = await apiFetch(`/api/applications/admin?${query}`, { token })
-      if (!res.ok) {
-        setItems([])
-        setError(res.data?.message || 'Failed to load applications')
-        setLoading(false)
-        return
-      }
-      setItems(Array.isArray(res.data?.items) ? res.data.items : [])
-      setLoading(false)
-    }
-
-    load()
-  }, [query, token])
-
-  const updateStatus = async (applicationId, nextStatus) => {
-    if (!token) return
+  const handleUpdateStatus = (applicationId, nextStatus) => {
     const id = String(applicationId || '').trim()
     const st = normalizeStatus(nextStatus)
     if (!id || !st) return
 
-    setUpdatingId(id)
-    setError('')
-    const res = await apiFetch(`/api/applications/${encodeURIComponent(id)}/status`, {
-      token,
-      method: 'PATCH',
-      body: { status: st },
-    })
-    setUpdatingId(null)
-
-    if (!res.ok) {
-      setError(res.data?.message || 'Failed to update status')
-      return
-    }
-
-    setItems((prev) => prev.map((a) => (a.id === id ? { ...a, status: res.data?.application?.status || st } : a)))
+    updateStatus.mutate(
+      { id, status: st },
+      {
+        onSuccess: () => toast.success('Status updated'),
+        onError: (err) => toast.error(err.message || 'Failed to update status'),
+      },
+    )
   }
 
   return (
-    <div>
-      <h2 style={{ margin: 0, color: '#111827' }}>Admin • Applications</h2>
-      <p style={{ marginTop: 6, color: '#6b7280', fontSize: 13 }}>
+    <div className="admin-page">
+      <h2>Admin &bull; Applications</h2>
+      <p className="subtitle">
         View and update tenant-scoped application statuses.
       </p>
 
-      <div style={{ marginTop: 12, display: 'flex', gap: 10, alignItems: 'end', flexWrap: 'wrap' }}>
+      <div className="admin-filters">
         <div>
-          <label style={{ display: 'block', color: '#6b7280', fontSize: 12, marginBottom: 6 }}>Status</label>
+          <label>Status</label>
           <select
             value={status}
             onChange={(e) => {
               setStatus(e.target.value)
               setPage(1)
             }}
-            style={{ padding: 10, borderRadius: 10, border: '1px solid #e5e7eb' }}
+            className="admin-select"
           >
             <option value="">All</option>
             <option value="APPLIED">APPLIED</option>
@@ -111,67 +85,53 @@ export default function AdminApplications() {
             setPage(1)
           }}
           disabled={loading}
-          style={{
-            padding: '10px 12px',
-            borderRadius: 10,
-            border: '1px solid #e5e7eb',
-            background: '#fff',
-            color: '#111827',
-            cursor: loading ? 'not-allowed' : 'pointer',
-            opacity: loading ? 0.7 : 1,
-          }}
+          className="admin-btn"
         >
           Reset
         </button>
       </div>
 
       {!loading && !error && items.length > 0 && (
-        <div style={{ marginTop: 12, display: 'flex', flexWrap: 'wrap', gap: 8, color: '#6b7280', fontSize: 12 }}>
-          <span style={{ padding: '6px 10px', borderRadius: 999, border: '1px solid #e5e7eb', background: '#fff' }}>
-            On this page: {items.length}
-          </span>
+        <div className="admin-chips">
+          <span className="admin-chip">On this page: {items.length}</span>
           {['APPLIED', 'SHORTLISTED', 'SELECTED', 'OFFERED', 'REJECTED'].map((k) => (
-            <span key={k} style={{ padding: '6px 10px', borderRadius: 999, border: '1px solid #e5e7eb', background: '#fff' }}>
-              {k}: {counts.get(k) || 0}
-            </span>
+            <span key={k} className="admin-chip">{k}: {counts.get(k) || 0}</span>
           ))}
         </div>
       )}
 
-      {loading && <div style={{ marginTop: 16, color: '#6b7280', fontSize: 13 }}>Loading…</div>}
-      {error && <div style={{ marginTop: 16, color: '#b91c1c', fontSize: 13 }}>{error}</div>}
+      {loading && <Spinner />}
+      {error && <div className="state-msg error">{error}</div>}
 
       {!loading && !error && items.length === 0 && (
-        <div style={{ marginTop: 16, color: '#6b7280', fontSize: 13 }}>No applications found.</div>
+        <EmptyState title="No applications" message="No applications found." />
       )}
 
       {!loading && !error && items.length > 0 && (
-        <div style={{ marginTop: 16, display: 'grid', gap: 10 }}>
+        <div className="admin-card-grid">
           {items.map((a) => (
-            <div key={a.id} style={{ border: '1px solid #e5e7eb', borderRadius: 12, padding: 12, background: '#fff' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center' }}>
+            <div key={a.id} className="admin-card">
+              <div className="admin-card-header">
                 <div>
-                  <div style={{ color: '#111827', fontWeight: 800 }}>Application</div>
-                  <div style={{ color: '#6b7280', fontSize: 12, marginTop: 4 }}>
-                    id: {a.id}
-                  </div>
+                  <div className="admin-card-title">Application</div>
+                  <div className="admin-card-meta">id: {a.id}</div>
                 </div>
-                <div style={{ color: '#6b7280', fontSize: 12 }}>Status: {a.status}</div>
+                <div className="admin-card-meta">Status: {a.status}</div>
               </div>
 
-              <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, color: '#6b7280', fontSize: 12 }}>
-                <div>jobId: <span style={{ color: '#111827' }}>{a.job_id}</span></div>
-                <div>userId: <span style={{ color: '#111827' }}>{a.user_id}</span></div>
-                <div>created: <span style={{ color: '#111827' }}>{a.created_at}</span></div>
-                <div>updated: <span style={{ color: '#111827' }}>{a.updated_at}</span></div>
+              <div className="admin-detail-grid">
+                <div>jobId: <span className="val">{a.job_id}</span></div>
+                <div>userId: <span className="val">{a.user_id}</span></div>
+                <div>created: <span className="val">{a.created_at}</span></div>
+                <div>updated: <span className="val">{a.updated_at}</span></div>
               </div>
 
-              <div style={{ marginTop: 10, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+              <div className="admin-status-row">
                 <select
                   defaultValue={a.status}
-                  disabled={updatingId === a.id}
-                  onChange={(e) => updateStatus(a.id, e.target.value)}
-                  style={{ padding: 10, borderRadius: 10, border: '1px solid #e5e7eb' }}
+                  disabled={updateStatus.isPending}
+                  onChange={(e) => handleUpdateStatus(a.id, e.target.value)}
+                  className="admin-select"
                 >
                   <option value="APPLIED">APPLIED</option>
                   <option value="SHORTLISTED">SHORTLISTED</option>
@@ -179,7 +139,7 @@ export default function AdminApplications() {
                   <option value="OFFERED">OFFERED</option>
                   <option value="REJECTED">REJECTED</option>
                 </select>
-                {updatingId === a.id && <div style={{ color: '#6b7280', fontSize: 12 }}>Updating…</div>}
+                {updateStatus.isPending && <div className="admin-updating-hint">Updating…</div>}
               </div>
             </div>
           ))}
@@ -187,18 +147,18 @@ export default function AdminApplications() {
       )}
 
       {!loading && (
-        <div style={{ marginTop: 16, display: 'flex', gap: 10, alignItems: 'center' }}>
+        <div className="admin-pagination">
           <button
             onClick={() => setPage((p) => Math.max(1, p - 1))}
             disabled={page <= 1}
-            style={{ padding: '10px 12px', borderRadius: 10, border: '1px solid #e5e7eb', background: '#fff' }}
+            className="admin-btn"
           >
             Previous
           </button>
-          <div style={{ color: '#6b7280', fontSize: 13 }}>Page {page}</div>
+          <div className="admin-page-label">Page {page}</div>
           <button
             onClick={() => setPage((p) => p + 1)}
-            style={{ padding: '10px 12px', borderRadius: 10, border: '1px solid #e5e7eb', background: '#fff' }}
+            className="admin-btn"
           >
             Next
           </button>

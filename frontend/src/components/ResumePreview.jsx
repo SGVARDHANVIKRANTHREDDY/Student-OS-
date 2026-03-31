@@ -8,8 +8,8 @@ export default function ResumePreview({ resume }) {
   return (
     <div className="resume-preview">
       <div className="resume-header">
-        <h2 style={{ margin: '0 0 5px 0', fontSize: '24px' }}>Resume Preview (ATS-Friendly)</h2>
-        <p style={{ margin: 0, color: '#999', fontSize: '12px' }}>
+        <h2 className="preview-title">Resume Preview (ATS-Friendly)</h2>
+        <p className="preview-subtitle">
           This preview shows how your resume appears to Applicant Tracking Systems
         </p>
       </div>
@@ -66,7 +66,7 @@ export default function ResumePreview({ resume }) {
           {resume.projects.map((proj, i) => (
             <div key={i} className="preview-item">
               <strong>{proj.title}</strong>
-              <p style={{ margin: '5px 0 0 0', color: '#666', fontSize: '13px' }}>
+              <p className="preview-item-desc">
                 {proj.description}
               </p>
             </div>

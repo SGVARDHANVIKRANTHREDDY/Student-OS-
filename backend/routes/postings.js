@@ -14,6 +14,9 @@ import {
   listSubmittedPostings,
   reviewJobPosting,
 } from '../lib/postingsDal.js'
+import { validate } from '../lib/validate.js'
+import { idStringParam, postingReviewBody, postingListQuery } from '../lib/schemas.js'
+import { apiSuccess, apiCreated, apiError, apiForbidden, apiNotFound, apiConflict } from '../lib/apiResponse.js'
 
 const router = express.Router()
 
@@ -35,12 +38,12 @@ router.post(
 
     const tenantId = getTenantIdFromRequest(req)
     const actorRole = pickActorRole(req.auth)
-    if (!actorRole) return res.status(403).json({ message: 'Forbidden' })
+    if (!actorRole) return apiForbidden(res)
 
     try {
       const result = await createJobPosting({ tenantId, userId: req.user.id, actorRole, input: req.body })
       if (!result.ok && result.code === 'VALIDATION') {
-        return res.status(400).json({ message: result.message })
+        return apiError(res, { status: 400, code: 'VALIDATION_ERROR', message: result.message })
       }
 
       try {
@@ -58,7 +61,7 @@ router.post(
         // ignore
       }
 
-      return res.status(201).json({ id: result.postingId, status: result.status })
+      return apiCreated(res, { id: result.postingId, status: result.status })
     } catch (err) {
       return next(err)
     }
@@ -70,18 +73,18 @@ router.put(
   '/jobs/:id',
   authMiddleware,
   requirePermission('postings:job:create'),
+  validate({ params: idStringParam }),
   async (req, res, next) => {
     if (!requirePg(res)) return
 
     const tenantId = getTenantIdFromRequest(req)
-    const id = String(req.params.id || '').trim()
-    if (!id) return res.status(400).json({ message: 'id is required' })
+    const { id } = req.params
 
     try {
       const result = await updateJobPostingDraft({ tenantId, userId: req.user.id, postingId: id, input: req.body })
-      if (!result.ok && result.code === 'VALIDATION') return res.status(400).json({ message: result.message })
-      if (!result.ok) return res.status(404).json({ message: 'Posting not found or not editable' })
-      return res.json({ ok: true })
+      if (!result.ok && result.code === 'VALIDATION') return apiError(res, { status: 400, code: 'VALIDATION_ERROR', message: result.message })
+      if (!result.ok) return apiNotFound(res, 'Posting not found or not editable')
+      return apiSuccess(res, { ok: true })
     } catch (err) {
       return next(err)
     }
@@ -93,16 +96,16 @@ router.post(
   '/jobs/:id/submit',
   authMiddleware,
   requirePermission('postings:job:submit'),
+  validate({ params: idStringParam }),
   async (req, res, next) => {
     if (!requirePg(res)) return
 
     const tenantId = getTenantIdFromRequest(req)
-    const id = String(req.params.id || '').trim()
-    if (!id) return res.status(400).json({ message: 'id is required' })
+    const { id } = req.params
 
     try {
       const result = await submitJobPosting({ tenantId, userId: req.user.id, postingId: id })
-      if (!result.ok) return res.status(404).json({ message: 'Posting not found or not submittable' })
+      if (!result.ok) return apiNotFound(res, 'Posting not found or not submittable')
 
       try {
         writeAuditLog({
@@ -119,7 +122,7 @@ router.post(
         // ignore
       }
 
-      return res.json({ ok: true, status: 'SUBMITTED' })
+      return apiSuccess(res, { ok: true, status: 'SUBMITTED' })
     } catch (err) {
       return next(err)
     }
@@ -131,15 +134,16 @@ router.get(
   '/jobs/me',
   authMiddleware,
   requirePermission('postings:job:create'),
+  validate({ query: postingListQuery }),
   async (req, res, next) => {
     if (!requirePg(res)) return
 
     const tenantId = getTenantIdFromRequest(req)
-    const limit = Number(req.query?.limit || 50)
+    const { limit } = req.query
 
     try {
       const data = await listMyJobPostings({ tenantId, userId: req.user.id, limit })
-      return res.json(data)
+      return apiSuccess(res, data)
     } catch (err) {
       return next(err)
     }
@@ -151,16 +155,17 @@ router.get(
   '/jobs/review',
   authMiddleware,
   requirePermission('postings:job:review'),
+  validate({ query: postingListQuery }),
   async (req, res, next) => {
     if (!requirePg(res)) return
 
     const tenantId = getTenantIdFromRequest(req)
     const status = String(req.query?.status || 'SUBMITTED')
-    const limit = Number(req.query?.limit || 50)
+    const { limit } = req.query
 
     try {
       const data = await listSubmittedPostings({ tenantId, status, limit })
-      return res.json(data)
+      return apiSuccess(res, data)
     } catch (err) {
       return next(err)
     }
@@ -172,22 +177,20 @@ router.post(
   '/jobs/:id/review',
   authMiddleware,
   requirePermission('postings:job:review'),
+  validate({ params: idStringParam, body: postingReviewBody }),
   async (req, res, next) => {
     if (!requirePg(res)) return
 
     const tenantId = getTenantIdFromRequest(req)
-    const id = String(req.params.id || '').trim()
-    const decision = String(req.body?.decision || '').trim()
-    const reason = String(req.body?.reason || '').trim()
-
-    if (!id) return res.status(400).json({ message: 'id is required' })
+    const { id } = req.params
+    const { decision, reason } = req.body
 
     const dec = decision.toUpperCase()
     if (dec === 'APPROVE' && !hasPermission(req.auth, 'postings:job:approve')) {
-      return res.status(403).json({ message: 'Forbidden' })
+      return apiForbidden(res)
     }
     if (dec === 'REJECT' && !hasPermission(req.auth, 'postings:job:reject')) {
-      return res.status(403).json({ message: 'Forbidden' })
+      return apiForbidden(res)
     }
 
     try {
@@ -199,9 +202,9 @@ router.post(
         reason,
       })
 
-      if (!result.ok && result.code === 'VALIDATION') return res.status(400).json({ message: result.message })
-      if (!result.ok && result.code === 'NOT_FOUND') return res.status(404).json({ message: 'Posting not found' })
-      if (!result.ok && result.code === 'NOT_SUBMITTED') return res.status(409).json({ message: 'Posting not submitted' })
+      if (!result.ok && result.code === 'VALIDATION') return apiError(res, { status: 400, code: 'VALIDATION_ERROR', message: result.message })
+      if (!result.ok && result.code === 'NOT_FOUND') return apiNotFound(res, 'Posting not found')
+      if (!result.ok && result.code === 'NOT_SUBMITTED') return apiConflict(res, 'Posting not submitted')
 
       try {
         writeAuditLog({
@@ -235,7 +238,7 @@ router.post(
         // ignore
       }
 
-      return res.json({ ok: true, status: result.status, publishedJobId: result.publishedJobId || null })
+      return apiSuccess(res, { ok: true, status: result.status, publishedJobId: result.publishedJobId || null })
     } catch (err) {
       return next(err)
     }

@@ -1,25 +1,46 @@
 import './StatusCards.css'
 
-export default function StatusCards() {
+export default function StatusCards({ stats }) {
+  const hasResume = stats?.hasResume
+  const skillCount = stats?.skillCount ?? 0
+
+  const cards = [
+    {
+      icon: '📄',
+      label: 'Resume',
+      value: hasResume ? 'Active' : 'Not Started',
+      hint: hasResume ? 'Resume is on file — keep it updated' : 'Build from your academics and skills',
+      status: hasResume ? 'success' : 'neutral',
+    },
+    {
+      icon: '⚡',
+      label: 'Skills Tracked',
+      value: skillCount > 0 ? String(skillCount) : '—',
+      hint: skillCount > 0 ? `${skillCount} skills in your profile` : 'Complete resume & courses to populate',
+      status: skillCount > 0 ? 'success' : 'neutral',
+    },
+    {
+      icon: '💼',
+      label: 'Job Readiness',
+      value: hasResume && skillCount >= 5 ? 'On Track' : 'Getting Started',
+      hint: 'Based on resume completeness and skill coverage',
+      status: hasResume && skillCount >= 5 ? 'success' : 'warning',
+    },
+  ]
+
   return (
     <div className="status-section">
-      <h3>📊 Status Overview</h3>
-      <div className="status-grid">
-        <div className="status-card">
-          <h4>📄 Resume</h4>
-          <div className="status-placeholder">Not Started</div>
-          <p className="status-hint">Build from your academics and skills</p>
-        </div>
-        <div className="status-card">
-          <h4>🔍 Skill Gaps</h4>
-          <div className="status-placeholder">Pending Analysis</div>
-          <p className="status-hint">Compare with job requirements</p>
-        </div>
-        <div className="status-card">
-          <h4>💼 Job Readiness</h4>
-          <div className="status-score">0%</div>
-          <p className="status-hint">Complete profile to increase score</p>
-        </div>
+      <div className="status-grid stagger-children">
+        {cards.map(card => (
+          <div key={card.label} className={`status-card status-card--${card.status}`}>
+            <div className="status-card-header">
+              <span className="status-card-icon">{card.icon}</span>
+              <span className="status-card-label">{card.label}</span>
+            </div>
+            <div className="status-card-value">{card.value}</div>
+            <p className="status-card-hint">{card.hint}</p>
+          </div>
+        ))}
       </div>
     </div>
   )

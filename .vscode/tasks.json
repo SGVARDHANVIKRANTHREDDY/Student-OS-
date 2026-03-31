@@ -215,6 +215,84 @@
 				"${workspaceFolder}\\scripts\\check-engines.ps1"
 			],
 			"isBackground": false
+		},
+
+		// ── FAANG Evaluation Agent ─────────────────────────────────────────
+		{
+			"label": "Validate eval prerequisites",
+			"type": "aitk",
+			"command": "debug-check-prerequisites",
+			"args": {
+				"portOccupancy": [5679, 8087]
+			}
+		},
+		{
+			"label": "Run Eval Agent HTTP Server",
+			"type": "shell",
+			"command": "${command:python.interpreterPath} -m debugpy --listen 127.0.0.1:5679 -m agentdev run ${workspaceFolder}/eval/agent.py --verbose --port 8087 -- --server",
+			"isBackground": true,
+			"options": {
+				"cwd": "${workspaceFolder}/eval",
+				"env": {
+					"WORKSPACE_ROOT": "${workspaceFolder}"
+				}
+			},
+			"dependsOn": ["Validate eval prerequisites"],
+			"problemMatcher": {
+				"pattern": [{"regexp": "^.*$", "file": 0, "location": 1, "message": 2}],
+				"background": {
+					"activeOnStart": true,
+					"beginsPattern": ".*",
+					"endsPattern": "Application startup complete|running on|Started server process"
+				}
+			}
+		},
+		{
+			"label": "Open Eval Agent Inspector",
+			"type": "shell",
+			"command": "echo '${input:openEvalInspector}'",
+			"presentation": {"reveal": "never"},
+			"dependsOn": ["Run Eval Agent HTTP Server"]
+		},
+		{
+			"label": "Run Eval Agent CLI (one-shot)",
+			"type": "shell",
+			"command": "${command:python.interpreterPath} -m debugpy --listen 127.0.0.1:5679 -m agentdev run ${workspaceFolder}/eval/agent.py --cli",
+			"isBackground": true,
+			"options": {
+				"cwd": "${workspaceFolder}/eval",
+				"env": {
+					"WORKSPACE_ROOT": "${workspaceFolder}"
+				}
+			},
+			"problemMatcher": {
+				"pattern": [{"regexp": "^.*$", "file": 0, "location": 1, "message": 2}],
+				"background": {
+					"activeOnStart": true,
+					"beginsPattern": ".*",
+					"endsPattern": "finished|FAANG|Error|Exception"
+				}
+			}
+		},
+		{
+			"label": "Terminate All Tasks",
+			"command": "echo ${input:terminate}",
+			"type": "shell",
+			"problemMatcher": []
+		}
+	],
+	"inputs": [
+		{
+			"id": "openEvalInspector",
+			"type": "command",
+			"command": "ai-mlstudio.openTestTool",
+			"args": {"triggeredFrom": "tasks", "port": 8087}
+		},
+		{
+			"id": "terminate",
+			"type": "command",
+			"command": "workbench.action.tasks.terminate",
+			"args": "terminateAll"
 		}
 	]
 }

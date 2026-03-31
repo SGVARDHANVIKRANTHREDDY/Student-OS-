@@ -8,6 +8,10 @@ import authMiddleware from '../middleware/auth.js'
 import { getDb } from '../lib/db.js'
 import { effectiveTenantId } from '../lib/tenancy.js'
 import { ensureDefaultRoleAssignments, ensureTenantMembership, getAuthzSnapshot, getTenantIdForUser } from '../lib/rbac.js'
+import { validate } from '../lib/validate.js'
+import { loginBody, signupBody, googleAuthBody } from '../lib/schemas.js'
+import { apiSuccess, apiCreated, apiError, apiUnauthorized, apiForbidden, apiTooMany, apiConflict } from '../lib/apiResponse.js'
+import { createBruteForceGuard } from '../lib/bruteForce.js'
 
 const router = express.Router()
 
@@ -125,52 +129,23 @@ function rotateRefreshToken(db, currentTokenRow, { userAgent = '', ip = '' } = {
   return next
 }
 
-// In-memory brute-force protection (production should swap this for Redis).
-const loginAttemptState = new Map()
-const MAX_ATTEMPTS = Number(process.env.LOGIN_MAX_ATTEMPTS || 8)
-const WINDOW_MS = Number(process.env.LOGIN_WINDOW_MS || 10 * 60_000)
-const BLOCK_MS = Number(process.env.LOGIN_BLOCK_MS || 15 * 60_000)
+// Distributed brute-force protection via Redis (falls back gracefully if Redis is unavailable).
+const bruteForce = createBruteForceGuard({
+  windowSec: Number(process.env.LOGIN_WINDOW_MS || 600000) / 1000,
+  maxAttempts: Number(process.env.LOGIN_MAX_ATTEMPTS || 8),
+  blockSec: Number(process.env.LOGIN_BLOCK_MS || 900000) / 1000,
+})
 
-const ATTEMPT_GC_MS = Number(process.env.LOGIN_ATTEMPT_GC_MS || 5 * 60_000)
-setInterval(() => {
-  const now = Date.now()
-  for (const [key, v] of loginAttemptState.entries()) {
-    const stale = now - (v.firstAt || 0) > WINDOW_MS + BLOCK_MS
-    const unblocked = !v.blockedUntil || v.blockedUntil <= now
-    if (stale && unblocked) loginAttemptState.delete(key)
-  }
-}, ATTEMPT_GC_MS).unref?.()
-
-function getAttemptKey(req, email) {
-  return `${getClientIp(req)}::${normalizeEmail(email)}`
+async function recordFailedAttempt(req, email) {
+  await bruteForce.recordFailure(getClientIp(req), normalizeEmail(email))
 }
 
-function recordFailedAttempt(req, email) {
-  const key = getAttemptKey(req, email)
-  const now = Date.now()
-  const prev = loginAttemptState.get(key) || { count: 0, firstAt: now, blockedUntil: 0 }
-  const withinWindow = now - prev.firstAt <= WINDOW_MS
-  const next = withinWindow ? { ...prev, count: prev.count + 1 } : { count: 1, firstAt: now, blockedUntil: 0 }
-  if (next.count >= MAX_ATTEMPTS) {
-    next.blockedUntil = now + BLOCK_MS
-  }
-  loginAttemptState.set(key, next)
-  return next
+async function clearAttempts(req, email) {
+  await bruteForce.clearAttempts(getClientIp(req), normalizeEmail(email))
 }
 
-function clearAttempts(req, email) {
-  loginAttemptState.delete(getAttemptKey(req, email))
-}
-
-function isBlocked(req, email) {
-  const key = getAttemptKey(req, email)
-  const cur = loginAttemptState.get(key)
-  if (!cur) return { blocked: false }
-  const now = Date.now()
-  if (cur.blockedUntil && cur.blockedUntil > now) {
-    return { blocked: true, retryAfterSec: Math.ceil((cur.blockedUntil - now) / 1000) }
-  }
-  return { blocked: false }
+async function isBlocked(req, email) {
+  return bruteForce.isBlocked(getClientIp(req), normalizeEmail(email))
 }
 
 const authLimiter = rateLimit({
@@ -207,32 +182,31 @@ async function handleLocalLogin(req, res, { requireAdmin = false } = {}) {
   const password = String(req.body?.password || '')
 
   if (!email || !password) {
-    return res.status(400).json({ message: 'Email and password are required' })
+    return apiError(res, { status: 400, code: 'VALIDATION_ERROR', message: 'Email and password are required' })
   }
 
-  const blocked = isBlocked(req, email)
+  const blocked = await isBlocked(req, email)
   if (blocked.blocked) {
-    res.setHeader('Retry-After', String(blocked.retryAfterSec))
-    return res.status(429).json({ message: 'Too many failed sign-in attempts. Please try again later.' })
+    return apiTooMany(res, { retryAfterSec: blocked.retryAfterSec, message: 'Too many failed sign-in attempts. Please try again later.' })
   }
 
-  const user = db.prepare(`SELECT id, email, name, password_hash, role FROM users WHERE email = ?`).get(email)
-  if (!user?.password_hash) {
-    recordFailedAttempt(req, email)
-    return res.status(401).json({ message: 'Invalid email or password' })
+  const user = db.prepare(`SELECT id, email, name, password_hash, role, status FROM users WHERE email = ?`).get(email)
+  if (!user?.password_hash || user.status === 'DELETED') {
+    await recordFailedAttempt(req, email)
+    return apiUnauthorized(res, 'Invalid email or password')
   }
 
   const ok = await bcrypt.compare(password, user.password_hash)
   if (!ok) {
-    recordFailedAttempt(req, email)
-    return res.status(401).json({ message: 'Invalid email or password' })
+    await recordFailedAttempt(req, email)
+    return apiUnauthorized(res, 'Invalid email or password')
   }
 
-  clearAttempts(req, email)
+  await clearAttempts(req, email)
 
   const snap = buildAuthSnapshot(db, user)
   if (requireAdmin && !isAdminSnapshot(snap)) {
-    return res.status(403).json({ message: 'Admin access required', code: 'ADMIN_REQUIRED' })
+    return apiForbidden(res, 'Admin access required')
   }
 
   const profile = ensureProfile(db, user.id)
@@ -243,7 +217,7 @@ async function handleLocalLogin(req, res, { requireAdmin = false } = {}) {
   })
   setRefreshCookie(res, refresh.raw)
 
-  return res.json({
+  return apiSuccess(res, {
     token: signToken(user, snap),
     refreshToken: refresh.raw,
     user: { id: user.id, email: user.email, name: user.name, role: user.role || 'user' },
@@ -252,22 +226,14 @@ async function handleLocalLogin(req, res, { requireAdmin = false } = {}) {
   })
 }
 
-router.post('/signup', async (req, res) => {
+router.post('/signup', validate({ body: signupBody }), async (req, res) => {
   const db = getDb()
-  const name = String(req.body?.name || '').trim()
-  const email = normalizeEmail(req.body?.email)
-  const password = String(req.body?.password || '')
-
-  if (!name) return res.status(400).json({ message: 'Full name is required' })
-  if (!email || !isValidEmail(email)) return res.status(400).json({ message: 'A valid email is required' })
-  if (!password || password.length < 8) {
-    return res.status(400).json({ message: 'Password must be at least 8 characters' })
-  }
+  const { name, email, password } = req.body
 
   const existing = db.prepare(`SELECT id FROM users WHERE email = ?`).get(email)
-  if (existing) return res.status(400).json({ message: 'An account already exists for this email' })
+  if (existing) return apiConflict(res, 'An account already exists for this email')
 
-  const passwordHash = await bcrypt.hash(password, 10)
+  const passwordHash = await bcrypt.hash(password, 12)
   const now = new Date().toISOString()
   const user = {
     id: crypto.randomUUID(),
@@ -296,46 +262,45 @@ router.post('/signup', async (req, res) => {
   })
   setRefreshCookie(res, refresh.raw)
 
-    return res.status(201).json({
+  return apiCreated(res, {
     token: signToken(user, snap),
     refreshToken: refresh.raw,
     user: { id: user.id, email: user.email, name: user.name, role: user.role || 'user' },
     profile: normalizeProfile(profile),
-      auth: snap,
+    auth: snap,
   })
 })
 
-router.post('/login', async (req, res) => {
+router.post('/login', validate({ body: loginBody }), async (req, res) => {
   return handleLocalLogin(req, res, { requireAdmin: false })
 })
 
 // Student portal login (explicit; same behavior as /login).
-router.post('/login/student', async (req, res) => {
+router.post('/login/student', validate({ body: loginBody }), async (req, res) => {
   return handleLocalLogin(req, res, { requireAdmin: false })
 })
 
 // Admin portal login (role-gated).
-router.post('/login/admin', async (req, res) => {
+router.post('/login/admin', validate({ body: loginBody }), async (req, res) => {
   return handleLocalLogin(req, res, { requireAdmin: true })
 })
 
 router.get('/me', authMiddleware, (req, res) => {
   const db = getDb()
   const user = db.prepare(`SELECT id, email, name, role FROM users WHERE id = ?`).get(req.user.id)
-  if (!user) return res.status(401).json({ message: 'Invalid session' })
+  if (!user) return apiUnauthorized(res, 'Invalid session')
 
   const profile = ensureProfile(db, user.id)
 
   const snap = buildAuthSnapshot(db, user)
-    return res.json({ user, profile: normalizeProfile(profile), auth: snap })
+  return apiSuccess(res, { user, profile: normalizeProfile(profile), auth: snap })
 })
 
-router.post('/google', async (req, res) => {
-  const credential = String(req.body?.credential || '')
-  if (!credential) return res.status(400).json({ message: 'Missing Google credential' })
+router.post('/google', validate({ body: googleAuthBody }), async (req, res) => {
+  const { credential } = req.body
 
   const clientId = process.env.GOOGLE_CLIENT_ID
-  if (!clientId) return res.status(500).json({ message: 'Google sign-in is not configured' })
+  if (!clientId) return apiError(res, { status: 500, code: 'CONFIG_ERROR', message: 'Google sign-in is not configured' })
 
   const client = new OAuth2Client(clientId)
   let payload
@@ -343,23 +308,29 @@ router.post('/google', async (req, res) => {
     const ticket = await client.verifyIdToken({ idToken: credential, audience: clientId })
     payload = ticket.getPayload()
   } catch {
-    return res.status(401).json({ message: 'Google authentication failed' })
+    return apiUnauthorized(res, 'Google authentication failed')
   }
 
   const email = normalizeEmail(payload?.email)
   const googleSub = String(payload?.sub || '')
   const name = String(payload?.name || '').trim() || 'Student'
   if (!email || !isValidEmail(email) || !googleSub) {
-    return res.status(400).json({ message: 'Invalid Google account' })
+    return apiError(res, { status: 400, code: 'VALIDATION_ERROR', message: 'Invalid Google account' })
   }
 
   const db = getDb()
   const now = new Date().toISOString()
 
-  let user = db.prepare(`SELECT id, email, name, role FROM users WHERE google_sub = ?`).get(googleSub)
+  let user = db.prepare(`SELECT id, email, name, role, status FROM users WHERE google_sub = ?`).get(googleSub)
+  if (user?.status === 'DELETED') {
+    return apiForbidden(res, 'This account has been deleted')
+  }
   if (!user) {
-    const byEmail = db.prepare(`SELECT id, email, name, google_sub, role FROM users WHERE email = ?`).get(email)
+    const byEmail = db.prepare(`SELECT id, email, name, google_sub, role, status FROM users WHERE email = ?`).get(email)
     if (byEmail) {
+      if (byEmail.status === 'DELETED') {
+        return apiForbidden(res, 'This account has been deleted')
+      }
       if (!byEmail.google_sub) {
         db.prepare(`UPDATE users SET google_sub = ?, updated_at = ? WHERE id = ?`).run(googleSub, now, byEmail.id)
       }
@@ -397,7 +368,7 @@ router.post('/google', async (req, res) => {
     ip: getClientIp(req),
   })
   setRefreshCookie(res, refresh.raw)
-  return res.json({
+  return apiSuccess(res, {
     token: signToken(user, snap),
     refreshToken: refresh.raw,
     user: { id: user.id, email: user.email, name: user.name, role: user.role || 'user' },
@@ -406,10 +377,10 @@ router.post('/google', async (req, res) => {
   })
 })
 
-router.post('/refresh', (req, res) => {
+router.post('/refresh', async (req, res) => {
   const db = getDb()
   const raw = String(req.cookies?.refresh_token || req.body?.refreshToken || '')
-  if (!raw) return res.status(401).json({ message: 'Missing refresh token' })
+  if (!raw) return apiUnauthorized(res, 'Missing refresh token')
 
   const tokenHash = sha256Base64Url(raw)
   const row = db
@@ -420,22 +391,31 @@ router.post('/refresh', (req, res) => {
     )
     .get(tokenHash)
 
-  if (!row || row.revoked_at) {
+  if (!row) {
     clearRefreshCookie(res)
-    return res.status(401).json({ message: 'Invalid refresh token' })
+    return apiUnauthorized(res, 'Invalid refresh token')
+  }
+
+  // Token reuse detection: a revoked token being presented indicates possible theft.
+  // Revoke ALL tokens for this user as a precaution.
+  if (row.revoked_at) {
+    db.prepare(`UPDATE refresh_tokens SET revoked_at = COALESCE(revoked_at, ?) WHERE user_id = ?`)
+      .run(new Date().toISOString(), row.user_id)
+    clearRefreshCookie(res)
+    return apiUnauthorized(res, 'Invalid refresh token')
   }
 
   const nowIso = new Date().toISOString()
   if (row.expires_at <= nowIso) {
     db.prepare(`UPDATE refresh_tokens SET revoked_at = ? WHERE id = ?`).run(nowIso, row.id)
     clearRefreshCookie(res)
-    return res.status(401).json({ message: 'Expired refresh token' })
+    return apiUnauthorized(res, 'Expired refresh token')
   }
 
-  const user = db.prepare(`SELECT id, email, name, role FROM users WHERE id = ?`).get(row.user_id)
-  if (!user) {
+  const user = db.prepare(`SELECT id, email, name, role, status FROM users WHERE id = ?`).get(row.user_id)
+  if (!user || user.status === 'DELETED') {
     clearRefreshCookie(res)
-    return res.status(401).json({ message: 'Invalid session' })
+    return apiUnauthorized(res, 'Invalid session')
   }
 
   const next = rotateRefreshToken(db, row, {
@@ -445,7 +425,7 @@ router.post('/refresh', (req, res) => {
   setRefreshCookie(res, next.raw)
 
   const snap = buildAuthSnapshot(db, user)
-  return res.json({ token: signToken(user, snap) })
+  return apiSuccess(res, { token: signToken(user, snap) })
 })
 
 router.post('/logout', authMiddleware, (req, res) => {
@@ -457,7 +437,16 @@ router.post('/logout', authMiddleware, (req, res) => {
     db.prepare(`UPDATE refresh_tokens SET revoked_at = ? WHERE token_hash = ?`).run(now, tokenHash)
   }
   clearRefreshCookie(res)
-  return res.json({ ok: true })
+  return apiSuccess(res, { ok: true })
+})
+
+router.post('/logout/all', authMiddleware, (req, res) => {
+  const db = getDb()
+  const userId = req.user.id
+  const now = new Date().toISOString()
+  db.prepare(`UPDATE refresh_tokens SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL`).run(now, userId)
+  clearRefreshCookie(res)
+  return apiSuccess(res, { ok: true })
 })
 
 export default router

@@ -128,15 +128,17 @@ export function checkAndIncrementUsage(db, { tenantId, featureKey, incrementBy =
   const tid = effectiveTenantId(tenantId)
   const fk = String(featureKey || '').trim()
   const pk = periodKeyFor(period)
+  const inc = Math.max(1, Math.trunc(Number(incrementBy) || 1))
 
-  const check = (() => {
-    const ent = getEntitlement(db, { tenantId: tid, featureKey: fk })
-    if (!ent.enabled) {
-      return { ok: false, code: 'FEATURE_DISABLED', message: 'This feature is not enabled for your plan.' }
-    }
+  const ent = getEntitlement(db, { tenantId: tid, featureKey: fk })
+  if (!ent.enabled) {
+    return { ok: false, code: 'FEATURE_DISABLED', message: 'This feature is not enabled for your plan.' }
+  }
 
+  // Atomic check-and-increment inside a transaction to avoid TOCTOU race.
+  const txn = db.transaction(() => {
     const current = getUsage(db, { tenantId: tid, featureKey: fk, periodKey: pk })
-    const next = current + Math.max(1, Math.trunc(Number(incrementBy) || 1))
+    const next = current + inc
 
     if (ent.limit !== null && next > ent.limit) {
       return {
@@ -149,21 +151,17 @@ export function checkAndIncrementUsage(db, { tenantId, featureKey, incrementBy =
       }
     }
 
-    return { ok: true, used: current, limit: ent.limit, period: pk }
-  })()
+    const now = new Date().toISOString()
+    db.prepare(
+      `INSERT INTO usage_counters (tenant_id, feature_key, period_key, count, updated_at)
+       VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT(tenant_id, feature_key, period_key) DO UPDATE
+         SET count = excluded.count,
+             updated_at = excluded.updated_at`
+    ).run(tid, fk, pk, next, now)
 
-  if (!check.ok) return check
+    return { ok: true, used: next, limit: ent.limit, period: pk }
+  })
 
-  const current = getUsage(db, { tenantId: tid, featureKey: fk, periodKey: pk })
-  const next = current + Math.max(1, Math.trunc(Number(incrementBy) || 1))
-  const now = new Date().toISOString()
-  db.prepare(
-    `INSERT INTO usage_counters (tenant_id, feature_key, period_key, count, updated_at)
-     VALUES (?, ?, ?, ?, ?)
-     ON CONFLICT(tenant_id, feature_key, period_key) DO UPDATE
-       SET count = excluded.count,
-           updated_at = excluded.updated_at`
-  ).run(tid, fk, pk, next, now)
-
-  return { ok: true, used: next, limit: check.limit, period: pk }
+  return txn()
 }

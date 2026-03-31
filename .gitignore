@@ -23,5 +23,18 @@ npm-debug.log*
 # OS
 .DS_Store
 
-# Docker
-*.volume
+# Database files
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+backend/data/
+
+# Sensitive Data
+ADMIN_CREDENTIALS.txt
+ADMIN_CREDENTIALS_AND_AUDIT.md
+*.env*
+
+# Dev/Audit output
+*-test-results.txt
+test-results.txt
+*.log

@@ -10,7 +10,10 @@
     "worker": "node worker.js",
     "worker:dev": "node --watch worker.js",
     "migrate:pg": "node scripts/migrate-pg.js",
-    "promote:admin": "node scripts/promote-admin.js"
+    "promote:admin": "node scripts/promote-admin.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
   },
   "keywords": [],
   "author": "",
@@ -25,12 +28,20 @@
     "express": "^4.18.2",
     "express-rate-limit": "^7.5.1",
     "google-auth-library": "^10.5.0",
+    "helmet": "^8.1.0",
+    "hpp": "^0.2.3",
     "ioredis": "^5.8.0",
     "jsonwebtoken": "^9.0.3",
     "multer": "^2.0.2",
     "pdf-parse": "^1.1.1",
     "pg": "^8.16.3",
     "pino": "^9.7.0",
-    "pino-http": "^10.5.0"
+    "pino-http": "^10.5.0",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "^4.0.18",
+    "supertest": "^7.2.2",
+    "vitest": "^4.0.18"
   }
 }

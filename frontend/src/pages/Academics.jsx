@@ -1,16 +1,17 @@
 import AcademicsSection from '../components/AcademicsSection'
 import { useAuth } from '../context/AuthContext'
+import './Admin.css'
 
 export default function Academics() {
   const { user, token } = useAuth()
 
   return (
-    <div>
-      <h2 style={{ margin: 0, color: '#111827' }}>Academics</h2>
-      <p style={{ marginTop: 6, color: '#6b7280', fontSize: 13 }}>
+    <div className="admin-page">
+      <h2>Academics</h2>
+      <p className="subtitle">
         Track attendance, subjects, and your career goal.
       </p>
-      <div style={{ marginTop: 16 }}>
+      <div className="section-wrap">
         <AcademicsSection userId={user?.id} token={token} />
       </div>
     </div>

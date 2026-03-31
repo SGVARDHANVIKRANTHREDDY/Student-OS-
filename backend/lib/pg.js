@@ -32,10 +32,17 @@ function createPool(kind) {
   const idleTimeoutMillis = Number(process.env.PGPOOL_IDLE_MS || 30_000)
   const connectionTimeoutMillis = Number(process.env.PGPOOL_CONN_TIMEOUT_MS || 5_000)
 
+  // Enable SSL by default in production.  Set PG_SSL=0 to opt out (e.g., in-VPC).
+  const isProd = String(process.env.NODE_ENV || '').toLowerCase() === 'production'
+  const sslEnv = String(process.env.PG_SSL || '').toLowerCase()
+  const sslOff = ['0', 'false', 'no', 'off'].includes(sslEnv)
+  const sslOn = ['1', 'true', 'yes', 'on'].includes(sslEnv) || (isProd && !sslOff)
+  const ssl = sslOn ? { rejectUnauthorized: true } : false
+
   const pool = new Pool(
     typeof cfg === 'string'
-      ? { connectionString: cfg, max, idleTimeoutMillis, connectionTimeoutMillis }
-      : { ...cfg, max, idleTimeoutMillis, connectionTimeoutMillis }
+      ? { connectionString: cfg, max, idleTimeoutMillis, connectionTimeoutMillis, ssl }
+      : { ...cfg, max, idleTimeoutMillis, connectionTimeoutMillis, ssl }
   )
 
   const statementTimeoutMs = Number(process.env.PG_STATEMENT_TIMEOUT_MS || 10_000)

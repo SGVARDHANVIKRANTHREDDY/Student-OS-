@@ -5,6 +5,9 @@ import { requirePermission } from '../lib/rbac.js'
 import { getDb } from '../lib/db.js'
 import { createJobAdmin, updateJobMarketplaceAdmin } from '../services/jobService.js'
 import { isServiceError } from '../domain/serviceErrors.js'
+import { validate } from '../lib/validate.js'
+import { adminUsersQuery, idStringParam } from '../lib/schemas.js'
+import { apiSuccess, apiCreated, apiError, apiPaginated } from '../lib/apiResponse.js'
 
 const router = express.Router()
 
@@ -15,12 +18,11 @@ function csvEscape(value) {
 }
 
 // Tenant-scoped user visibility for operators.
-router.get('/users', authMiddleware, requirePermission('users:read:any'), (req, res) => {
+router.get('/users', authMiddleware, requirePermission('users:read:any'), validate({ query: adminUsersQuery }), (req, res) => {
 
   const db = getDb()
   const tenantId = getTenantIdFromRequest(req)
-  const limit = Math.min(Math.max(Number(req.query?.limit || 100), 1), 500)
-  const offset = Math.max(Number(req.query?.offset || 0), 0)
+  const { limit, offset } = req.query
 
   const users = db
     .prepare(
@@ -51,7 +53,7 @@ router.get('/users', authMiddleware, requirePermission('users:read:any'), (req, 
     rolesByUser.set(r.user_id, roles)
   }
 
-  return res.json({
+  return apiPaginated(res, {
     items: users.map((u) => ({
       id: u.id,
       email: u.email,
@@ -59,8 +61,8 @@ router.get('/users', authMiddleware, requirePermission('users:read:any'), (req, 
       roles: rolesByUser.get(u.id) || [],
       createdAt: u.created_at,
     })),
-    limit,
-    offset,
+    page: Math.floor(offset / limit) + 1,
+    pageSize: limit,
   })
 })
 
@@ -120,7 +122,7 @@ router.post('/jobs', authMiddleware, async (req, res, next) => {
       input: req.body || {},
       correlationId: req.id || null,
     })
-    return res.status(201).json(created)
+    return apiCreated(res, created)
   } catch (err) {
     if (isServiceError(err)) return res.status(err.httpStatus).json(err.toResponseBody())
     return next(err)
@@ -128,11 +130,10 @@ router.post('/jobs', authMiddleware, async (req, res, next) => {
 })
 
 // Marketplace: admin-owned job management (edit fields, set deadlines, open/close/archive).
-router.patch('/jobs/:id', authMiddleware, async (req, res, next) => {
+router.patch('/jobs/:id', authMiddleware, validate({ params: idStringParam }), async (req, res, next) => {
   if (!requirePg(res)) return
   const tenantId = getTenantIdFromRequest(req)
-  const jobId = String(req.params.id || '').trim()
-  if (!jobId) return res.status(400).json({ message: 'Job id is required' })
+  const { id: jobId } = req.params
 
   try {
     const result = await updateJobMarketplaceAdmin({
@@ -143,7 +144,7 @@ router.patch('/jobs/:id', authMiddleware, async (req, res, next) => {
       patch: req.body || {},
       correlationId: req.id || null,
     })
-    return res.json(result)
+    return apiSuccess(res, result)
   } catch (err) {
     if (isServiceError(err)) return res.status(err.httpStatus).json(err.toResponseBody())
     return next(err)

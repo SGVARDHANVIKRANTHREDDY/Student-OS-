@@ -2,6 +2,7 @@ import express from 'express'
 import authMiddleware from '../middleware/auth.js'
 import { getDb } from '../lib/db.js'
 import { effectiveTenantId, getTenantIdFromRequest } from '../lib/tenancy.js'
+import { apiSuccess, apiUnauthorized } from '../lib/apiResponse.js'
 
 const router = express.Router()
 
@@ -11,7 +12,7 @@ function nowIso() {
 
 function exportUserData(db, { tenantId, userId }) {
   const user = db
-    .prepare('SELECT id, email, name, provider, google_sub, created_at, updated_at, status, deleted_at FROM users WHERE id = ?')
+    .prepare('SELECT id, email, name, provider, created_at, updated_at, status, deleted_at FROM users WHERE id = ?')
     .get(userId)
 
   const profile = db.prepare('SELECT * FROM profiles WHERE user_id = ?').get(userId)
@@ -111,10 +112,10 @@ router.get('/me/export', authMiddleware, (req, res) => {
   const tenantId = effectiveTenantId(getTenantIdFromRequest(req))
   const userId = req.user?.id
 
-  if (!userId) return res.status(401).json({ message: 'Authentication required' })
+  if (!userId) return apiUnauthorized(res)
 
   const payload = exportUserData(db, { tenantId, userId })
-  return res.json(payload)
+  return apiSuccess(res, payload)
 })
 
 // DELETE /api/account/me
@@ -123,7 +124,7 @@ router.delete('/me', authMiddleware, async (req, res) => {
   const tenantId = effectiveTenantId(getTenantIdFromRequest(req))
   const userId = req.user?.id
 
-  if (!userId) return res.status(401).json({ message: 'Authentication required' })
+  if (!userId) return apiUnauthorized(res)
 
   const existing = db
     .prepare(
@@ -137,7 +138,7 @@ router.delete('/me', authMiddleware, async (req, res) => {
   const purgeAfter = new Date(Date.now() + retentionDays * 24 * 60 * 60 * 1000).toISOString()
 
   if (existing && (existing.status === 'SOFT_DELETED' || existing.status === 'PURGED')) {
-    return res.json({ ok: true, tenantId, userId, deletion: existing, note: 'Already deleted' })
+    return apiSuccess(res, { ok: true, tenantId, userId, deletion: existing, note: 'Already deleted' })
   }
 
   db.prepare('BEGIN').run()
@@ -173,7 +174,7 @@ router.delete('/me', authMiddleware, async (req, res) => {
     )
     .get(tenantId, userId)
 
-  return res.json({ ok: true, tenantId, userId, deletion })
+  return apiSuccess(res, { ok: true, tenantId, userId, deletion })
 })
 
 export default router
